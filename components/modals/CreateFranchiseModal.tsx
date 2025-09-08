@@ -35,6 +35,7 @@ interface Business {
   industry?: { name: string } | null;
   category?: { name: string } | null;
   costPerArea?: number;
+  currency?: string; // Currency the business was registered in
   min_area?: number;
 }
 
@@ -90,7 +91,36 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
   const { createFranchise, investInFranchise, connected: programConnected } = useFranchiseProgram();
-  const { formatAmount } = useGlobalCurrency();
+  const { formatAmount, selectedCurrency, exchangeRates, currencies, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
+
+  // Helper function to convert business cost to current user's currency
+  const convertBusinessCostToCurrentCurrency = (business: Business) => {
+    if (!business?.costPerArea) return 0;
+
+    const costPerArea = business.costPerArea;
+    const businessCurrency = business.currency || 'USD'; // Default to USD for new data
+
+    console.log('Converting business cost:', {
+      costPerArea,
+      businessCurrency,
+      selectedCurrency,
+      businessName: business.name
+    });
+
+    // If business currency is the same as selected currency, no conversion needed
+    if (businessCurrency.toLowerCase() === selectedCurrency.toLowerCase()) {
+      return costPerArea;
+    }
+
+    // If business is stored in USD, convert USD to current currency
+    if (businessCurrency.toLowerCase() === 'usd') {
+      return convertFromUSDT(costPerArea, selectedCurrency);
+    }
+
+    // For legacy data: Convert from business currency to USDT, then to selected currency
+    const costInUSDT = convertToUSDT(costPerArea, businessCurrency.toLowerCase());
+    return convertFromUSDT(costInUSDT, selectedCurrency);
+  };
 
   // Convex mutations
   const createFranchiseInDB = useMutation(api.franchise.create);
@@ -782,59 +812,69 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
     }
   };
 
-  // Step 4 rules: AED 10 per share, min 5% investment
-  const FIXED_AED_PER_SHARE = 10;
+  // Step 4 rules: USDT 1 per share, min 5% investment
+  const FIXED_USDT_PER_SHARE = 1;
 
   const calculateTotalInvestment = () => {
     const area = parseFloat(formData.locationDetails.sqft) || 0;
-    // Use business costPerArea as primary source, fallback to form data
-    const costPerAreaAED = formData.selectedBusiness?.costPerArea || parseFloat(formData.locationDetails.costPerArea) || 0;
 
-    // Ensure we're working with AED values
-    // The business costPerArea is now stored in AED and all calculations use AED
-    const totalInvestmentAED = area * costPerAreaAED;
+    // Convert business cost to current currency if available
+    let costPerAreaLocal = 0;
+    if (formData.selectedBusiness?.costPerArea) {
+      costPerAreaLocal = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
+    } else {
+      // Fallback to form data (already in current currency)
+      costPerAreaLocal = parseFloat(formData.locationDetails.costPerArea) || 0;
+    }
+
+    // Calculate in current user's currency
+    const totalInvestmentLocal = area * costPerAreaLocal;
 
     console.log('calculateTotalInvestment:', {
       area,
-      costPerAreaAED,
-      totalInvestmentAED,
-      businessCostPerArea: formData.selectedBusiness?.costPerArea
+      costPerAreaLocal,
+      totalInvestmentLocal,
+      businessCostPerAreaUSD: formData.selectedBusiness?.costPerArea,
+      currentCurrency: selectedCurrency
     });
 
-    return totalInvestmentAED;
+    return totalInvestmentLocal;
   };
 
-  // Total number of shares is totalInvestment / AED 10
+  // Total number of shares is totalInvestment converted to USDT / USDT 1
   const calculateTotalShares = () => {
-    const totalInvestmentAED = calculateTotalInvestment();
-    const totalShares = Math.floor(totalInvestmentAED / FIXED_AED_PER_SHARE);
+    const totalInvestmentLocal = calculateTotalInvestment();
+    // Convert local currency to USDT for share calculation
+    const totalInvestmentUSDT = convertToUSDT(totalInvestmentLocal);
+    const totalShares = Math.floor(totalInvestmentUSDT / FIXED_USDT_PER_SHARE);
     return totalShares;
   };
 
-  // Share price in SOL: AED 10 converted to SOL using current AED/SOL rate
-  const [aedPerSol, setAedPerSol] = useState<number>(0);
+  // Share price in SOL: USDT 1 converted to SOL using current USDT/SOL rate
+  const [usdtPerSol, setUsdtPerSol] = useState<number>(0);
   useEffect(() => {
     const loadSolRate = async () => {
       try {
         const prices = await coinGeckoService.getSolPrices();
-        setAedPerSol(prices.aed || 0);
+        // Use USD as proxy for USDT since they're approximately equal
+        setUsdtPerSol(prices.usdt || prices.usd || 0);
       } catch {
-        setAedPerSol(0);
+        setUsdtPerSol(0);
       }
     };
     void loadSolRate();
   }, []);
 
   const calculateSharePrice = () => {
-    if (!aedPerSol || aedPerSol <= 0) return 0;
-    // AED 10 per share -> convert to SOL
-    return FIXED_AED_PER_SHARE / aedPerSol;
+    if (!usdtPerSol || usdtPerSol <= 0) return 0;
+    // USDT 1 per share -> convert to SOL
+    return FIXED_USDT_PER_SHARE / usdtPerSol;
   };
 
   // Ensure formData investment totals adhere to rules when step 4 loads
   useEffect(() => {
     if (currentStep !== 4) return;
-    if (!aedPerSol || aedPerSol <= 0) return; // Wait for SOL price to load
+    if (!usdtPerSol || usdtPerSol <= 0) return; // Wait for SOL price to load
 
     const totalShares = calculateTotalShares();
     const minShares = Math.max(1, Math.ceil(totalShares * 0.05));
@@ -856,7 +896,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
         sharePrice: calculateSharePrice(),
       },
     }));
-  }, [currentStep, formData.locationDetails.sqft, formData.locationDetails.costPerArea, aedPerSol]);
+  }, [currentStep, formData.locationDetails.sqft, formData.locationDetails.costPerArea, usdtPerSol]);
 
   // Filter businesses based on search query
   const filteredBusinesses = businesses.filter(business =>
@@ -1028,7 +1068,23 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                           {business.costPerArea && (
                             <div className="flex items-center gap-2">
                               <DollarSign className="h-4 w-4" />
-                              <span className="font-medium">AED {business.costPerArea.toFixed(2)}/sq ft</span>
+                              <div className="text-right">
+                                {(() => {
+const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerArea, selectedCurrency) : 0;
+                                  // Calculate USDT equivalent based on business currency
+                                  const businessCurrency = business.currency || 'USD';
+                                  const usdtEquivalent = businessCurrency.toLowerCase() === 'usd'
+                                    ? business.costPerArea
+                                    : convertToUSDT(business.costPerArea || 0, businessCurrency.toLowerCase());
+
+                                  return (
+                                    <>
+                                      <div className="font-medium">{formatAmount(convertedCost)}/sq ft</div>
+                                      <div className="text-xs text-muted-foreground">(≈ USDT {usdtEquivalent?.toFixed(2)})</div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
                             </div>
                           )}
                           {business.min_area && (
@@ -1175,7 +1231,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
               <div className="space-y-6">
                 {/* Franchise Details */}
                 <div className="space-y-4">
-                  <div>
+                  {/* <div>
                     <label className="text-sm font-medium mb-2 block">Franchise Slug</label>
                     <div className="h-12 px-3 py-2 bg-gray-50 dark:bg-stone-800 border border-gray-200 dark:border-stone-700 rounded-md flex items-center text-lg">
                       {formData.locationDetails.franchiseSlug || 'Auto-generated after business selection'}
@@ -1183,7 +1239,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                     <p className="text-xs text-muted-foreground mt-1">
                       Auto-generated based on business name and location count
                     </p>
-                  </div>
+                  </div> */}
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">Building Name</label>
@@ -1248,10 +1304,14 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                   <div>
                     <label className="text-sm font-medium mb-2 block">Cost per Sq Ft</label>
                     <div className="h-12 px-3 py-2 bg-gray-50 dark:bg-stone-800 border border-gray-200 dark:border-stone-700 rounded-md flex items-center text-lg">
-                      {formData.selectedBusiness?.costPerArea ?
-                        `AED ${formData.selectedBusiness.costPerArea.toFixed(2)}` :
-                        'Not set by brand owner'
-                      }
+                      {formData.selectedBusiness?.costPerArea ? (() => {
+                        const convertedCost = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
+                        const businessCurrency = formData.selectedBusiness.currency || 'USD';
+                        const usdtEquivalent = businessCurrency.toLowerCase() === 'usd'
+                          ? formData.selectedBusiness.costPerArea
+                          : convertToUSDT(formData.selectedBusiness.costPerArea, businessCurrency.toLowerCase());
+                        return `${formatAmount(convertedCost)} (≈ USDT ${usdtEquivalent.toFixed(2)})`;
+                      })() : 'Not set by brand owner'}
                     </div>
                     {/* <p className="text-xs text-muted-foreground mt-1">
                       This rate is configured by the brand owner in their account settings
@@ -1267,10 +1327,17 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                       <h3 className="font-medium text-yellow-800 dark:text-yellow-200">Investment Calculation</h3>
                     </div>
                     <div className="text-2xl font-bold text-yellow-800 dark:text-yellow-200">
-                      Total Investment: AED {calculateTotalInvestment().toFixed(2)}
+                      Total Investment: {formatAmount(calculateTotalInvestment())}
+                      <span className="text-sm ml-2">(≈ USDT {convertToUSDT(calculateTotalInvestment()).toFixed(2)})</span>
                     </div>
                     <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
-                      {formData.locationDetails.sqft} sq ft × AED {formData.selectedBusiness.costPerArea?.toFixed(2)} per sq ft
+                      {formData.locationDetails.sqft} sq ft × {(() => {
+                        if (formData.selectedBusiness?.costPerArea) {
+                          const convertedCost = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
+                          return formatAmount(convertedCost);
+                        }
+                        return formatAmount(0);
+                      })()} per sq ft
                     </p>
                   </div>
                 )}
@@ -1460,7 +1527,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                       className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center"
                     />
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Price per share: AED 10.00
+                      Price per share: {formatAmount(convertFromUSDT(1))} (≈ USDT 1.00)
                     </div>
                   </div>
                 </div>
@@ -1494,22 +1561,22 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        {formData.investment.selectedShares} shares × AED 10.00
+                        {formData.investment.selectedShares} shares × {formatAmount(convertFromUSDT(1))}
                       </span>
-                      <span className="dark:text-white">AED {(formData.investment.selectedShares * 10).toFixed(2)}</span>
+                      <span className="dark:text-white">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1))}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Platform Fee (2%)</span>
-                      <span className="dark:text-white">AED {(formData.investment.selectedShares * 10 * 0.02).toFixed(2)}</span>
+                      <span className="dark:text-white">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.02)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">GST (18%)</span>
-                      <span className="dark:text-white">AED {(formData.investment.selectedShares * 10 * 0.18).toFixed(2)}</span>
+                      <span className="dark:text-white">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.18)}</span>
                     </div>
                     <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
                       <div className="flex justify-between font-semibold">
                         <span className="dark:text-white">Total Amount</span>
-                        <span className="text-green-600 dark:text-green-400">AED {(formData.investment.selectedShares * 10 * 1.2).toFixed(2)}</span>
+                        <span className="text-green-600 dark:text-green-400">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}</span>
                       </div>
                     </div>
                   </div>
@@ -1538,13 +1605,33 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Cost per sq ft:</span>
                     <span className="font-medium">
-                      AED {(formData.selectedBusiness?.costPerArea || parseFloat(formData.locationDetails.costPerArea) || 0).toFixed(2)}
+                      {(() => {
+                        let costPerArea = 0;
+                        let costPerAreaUSD = 0;
+                        if (formData.selectedBusiness?.costPerArea) {
+                          const businessCurrency = formData.selectedBusiness.currency || 'USD';
+                          costPerAreaUSD = businessCurrency.toLowerCase() === 'usd'
+                            ? formData.selectedBusiness.costPerArea
+                            : convertToUSDT(formData.selectedBusiness.costPerArea, businessCurrency.toLowerCase());
+                          costPerArea = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
+                        } else {
+                          const inputCost = parseFloat(formData.locationDetails.costPerArea) || 0;
+                          costPerAreaUSD = convertToUSDT(inputCost, selectedCurrency);
+                          costPerArea = inputCost;
+                        }
+                        return (
+                          <>
+                            {formatAmount(costPerArea)}
+                            <span className="text-xs ml-1">(≈ USDT {costPerAreaUSD.toFixed(2)})</span>
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
                   <div className="border-t border-stone-200 dark:border-stone-600 pt-3">
                     <div className="flex justify-between">
                       <span className="font-semibold">Total Project Investment:</span>
-                      <span className="text-xl font-bold text-green-600">AED {calculateTotalInvestment().toFixed(2)}</span>
+                      <span className="text-xl font-bold text-green-600">{formatAmount(calculateTotalInvestment())}</span>
                     </div>
                   </div>
                 </div>
@@ -1733,7 +1820,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
               {/* Left side - Payment totals */}
               <div className="space-y-1">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Total Amount: AED {(formData.investment.selectedShares * 10 * 1.2).toFixed(2)}
+                  Total Amount: {formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}
                 </div>
                 <div className="text-lg font-semibold">
                   Pay: {(formData.investment.selectedShares * calculateSharePrice() * 1.2).toFixed(4)} SOL

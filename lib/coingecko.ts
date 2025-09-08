@@ -6,6 +6,7 @@
  */
 
 export interface SolPriceData {
+  usdt: number;
   usd: number;
   eur: number;
   gbp: number;
@@ -42,6 +43,7 @@ export interface LocalCurrency {
 
 // Supported local currencies for wallet display
 export const SUPPORTED_CURRENCIES: LocalCurrency[] = [
+  { code: 'usdt', name: 'Tether USD', symbol: 'USDT', flag: '₮' },
   { code: 'usd', name: 'US Dollar', symbol: '$', flag: '🇺🇸' },
   { code: 'eur', name: 'Euro', symbol: '€', flag: '🇪🇺' },
   { code: 'gbp', name: 'British Pound', symbol: '£', flag: '🇬🇧' },
@@ -72,7 +74,15 @@ class CoinGeckoService {
     }
 
     try {
-      const currencies = SUPPORTED_CURRENCIES.map(c => c.code).join(',');
+      // Exclude USDT from API call since CoinGecko doesn't support it as vs_currency
+      // We'll calculate USDT from USD (since USDT ≈ USD)
+      const currencies = SUPPORTED_CURRENCIES
+        .filter(c => c.code !== 'usdt') // Remove USDT from API call
+        .map(c => c.code)
+        .join(',');
+
+      console.log('Fetching SOL prices for currencies:', currencies);
+
       const response = await fetch(
         `${this.baseUrl}/simple/price?ids=solana&vs_currencies=${currencies}`,
         {
@@ -83,22 +93,37 @@ class CoinGeckoService {
       );
 
       if (!response.ok) {
+        console.error(`CoinGecko API error: ${response.status} ${response.statusText}`);
         throw new Error(`CoinGecko API error: ${response.status}`);
       }
 
       const data = await response.json();
-      const solPrices = data.solana as SolPriceData;
+      console.log('CoinGecko API response:', data);
+
+      const solPrices = data.solana;
+
+      if (!solPrices) {
+        throw new Error('No SOL price data in response');
+      }
+
+      // Add USDT price (same as USD since USDT ≈ USD)
+      const enrichedPrices: SolPriceData = {
+        usdt: solPrices.usd || 20, // Use USD price for USDT, fallback to 20
+        ...solPrices
+      };
 
       // Update cache
       this.cache = {
-        data: solPrices,
+        data: enrichedPrices,
         timestamp: now,
       };
 
-      return solPrices;
+      console.log('Successfully fetched SOL prices:', enrichedPrices);
+      return enrichedPrices;
     } catch (error) {
       console.error('Failed to fetch SOL prices from CoinGecko:', error);
-      
+      console.log('Using fallback prices instead');
+
       // Return fallback prices if API fails
       return this.getFallbackPrices();
     }
@@ -108,33 +133,41 @@ class CoinGeckoService {
    * Get fallback prices when API is unavailable
    */
   private getFallbackPrices(): SolPriceData {
-    return {
-      usd: 20,
-      eur: 18.5,
-      gbp: 16,
-      jpy: 3000,
-      aud: 30,
-      cad: 27,
-      chf: 18,
-      cny: 145,
-      inr: 1650,
-      aed: 73,
-      sar: 75,
-      sgd: 27,
-      hkd: 156,
-      krw: 26000,
-      brl: 120,
-      mxn: 400,
-      rub: 1800,
-      zar: 360,
-      try: 600,
-      nok: 220,
-      sek: 220,
-      dkk: 140,
-      pln: 80,
-      czk: 460,
-      huf: 7500,
+    console.log('Using fallback SOL prices due to API failure');
+
+    // These are SOL prices in each currency (1 SOL = X currency)
+    // Realistic fallback rates based on recent market data
+    const fallbackPrices: SolPriceData = {
+      usdt: 20,   // 1 SOL ≈ 20 USDT (base rate)
+      usd: 20,    // 1 SOL ≈ 20 USD (so 1 USDT ≈ 1 USD)
+      eur: 18.5,  // 1 SOL ≈ 18.5 EUR (so 1 USDT ≈ 0.925 EUR)
+      gbp: 16,    // 1 SOL ≈ 16 GBP (so 1 USDT ≈ 0.8 GBP)
+      jpy: 3000,  // 1 SOL ≈ 3000 JPY (so 1 USDT ≈ 150 JPY)
+      aud: 30,    // 1 SOL ≈ 30 AUD (so 1 USDT ≈ 1.5 AUD)
+      cad: 27,    // 1 SOL ≈ 27 CAD (so 1 USDT ≈ 1.35 CAD)
+      chf: 18,    // 1 SOL ≈ 18 CHF (so 1 USDT ≈ 0.9 CHF)
+      cny: 145,   // 1 SOL ≈ 145 CNY (so 1 USDT ≈ 7.25 CNY)
+      inr: 1800,  // 1 SOL ≈ 1800 INR (so 1 USDT ≈ 90 INR) - ACCURATE!
+      aed: 73,    // 1 SOL ≈ 73 AED (so 1 USDT ≈ 3.65 AED)
+      sar: 75,    // 1 SOL ≈ 75 SAR (so 1 USDT ≈ 3.75 SAR)
+      sgd: 27,    // 1 SOL ≈ 27 SGD (so 1 USDT ≈ 1.35 SGD)
+      hkd: 156,   // 1 SOL ≈ 156 HKD
+      krw: 26000, // 1 SOL ≈ 26000 KRW
+      brl: 120,   // 1 SOL ≈ 120 BRL
+      mxn: 400,   // 1 SOL ≈ 400 MXN
+      rub: 1800,  // 1 SOL ≈ 1800 RUB
+      zar: 360,   // 1 SOL ≈ 360 ZAR
+      try: 600,   // 1 SOL ≈ 600 TRY
+      nok: 220,   // 1 SOL ≈ 220 NOK
+      sek: 220,   // 1 SOL ≈ 220 SEK
+      dkk: 140,   // 1 SOL ≈ 140 DKK
+      pln: 80,    // 1 SOL ≈ 80 PLN
+      czk: 460,   // 1 SOL ≈ 460 CZK
+      huf: 7500,  // 1 SOL ≈ 7500 HUF
     };
+
+    console.log('Fallback prices loaded:', fallbackPrices);
+    return fallbackPrices;
   }
 
   /**

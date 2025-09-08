@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { useSolana } from '@/hooks/useSolana';
 import { useFranchiseProgram } from '@/hooks/useFranchiseProgram';
 import { useTransactionWallet } from '@/hooks/useTransactionWallet';
-import { calculateAvailableShares, FIXED_AED_PER_SHARE } from '@/lib/franchise-calculations';
+import { calculateAvailableShares, FIXED_USDT_PER_SHARE } from '@/lib/franchise-calculations';
 
 interface FranchiseData {
   name: string;

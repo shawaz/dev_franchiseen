@@ -8,7 +8,7 @@ import { useGlobalCurrency } from "@/contexts/GlobalCurrencyContext";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { calculateTotalShares, calculateAvailableShares, FIXED_AED_PER_SHARE } from "@/lib/franchise-calculations";
+import { calculateTotalShares, calculateAvailableShares, FIXED_USDT_PER_SHARE } from "@/lib/franchise-calculations";
 
 
 interface FranchiseCardProps {
@@ -67,7 +67,16 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
 }) => {
   const [isFavorite, setIsFavorite] = useState(false);
   const router = useRouter();
-  const { formatAmount } = useGlobalCurrency();
+  const { formatAmount, selectedCurrency, exchangeRates, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
+
+  // Helper function to convert USD-stored values to current user's currency
+  const convertUSDToCurrentCurrency = (amountUSD: number) => {
+    if (!amountUSD) return 0;
+
+    // All values are now stored in USD, so convert USD to current currency
+    // Since USD ≈ USDT, we can use convertFromUSDT directly
+    return convertFromUSDT(amountUSD, selectedCurrency);
+  };
 
   // Get business data from Convex
   const business = useQuery(
@@ -155,15 +164,22 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
       case "fund":
         // Use dynamic funding data if available, fallback to props
         const dynamicFundingProgress = fundingData?.fundingPercentage || 0;
-        const dynamicTotalRaised = fundingData?.totalRaised || fundingProgress || 0;
-        const dynamicFundingTarget = fundingData?.fundingTarget || fundingGoal || price;
+        const rawTotalRaised = fundingData?.totalRaised || fundingProgress || 0;
+        const rawFundingTarget = fundingData?.fundingTarget || fundingGoal || price;
         const dynamicInvestorsCount = investmentData?.investors?.totalCount || investorsCount || 0;
 
-        // Calculate correct total shares and available shares
-        const totalInvestmentAmount = investmentData?.franchise?.totalInvestment || dynamicFundingTarget;
-        const totalSharesAvailable = calculateTotalShares(totalInvestmentAmount);
+        // Get USD amounts and convert to current currency
+        const totalInvestmentAmountUSD = investmentData?.franchise?.totalInvestment || rawFundingTarget;
+        const totalRaisedAmountUSD = rawTotalRaised;
+
+        // Convert USD amounts to current user's currency
+        const totalInvestmentAmount = convertUSDToCurrentCurrency(totalInvestmentAmountUSD);
+        const totalRaisedAmount = convertUSDToCurrentCurrency(totalRaisedAmountUSD);
+
+        // Calculate shares based on converted amounts
+        const totalSharesAvailable = calculateTotalShares(totalInvestmentAmount, exchangeRates, selectedCurrency);
         const soldShares = investmentData?.investment?.totalShares || 0;
-        const availableShares = calculateAvailableShares(totalInvestmentAmount, soldShares);
+        const availableShares = calculateAvailableShares(totalInvestmentAmount, soldShares, exchangeRates, selectedCurrency);
 
         return (
           <>
@@ -183,12 +199,12 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
                 ></div>
               </div>
               <div className="flex justify-between text-xs mt-1">
-                <span>{formatCurrency(dynamicTotalRaised)} raised</span>
+                <span>{formatCurrency(totalRaisedAmount)} raised</span>
                 <span>{availableShares} shares left</span>
               </div>
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {totalSharesAvailable} total shares • AED {FIXED_AED_PER_SHARE}/share • {dynamicInvestorsCount} investors
+              {totalSharesAvailable} total shares • {formatAmount(convertFromUSDT(1))}/share • {dynamicInvestorsCount} investors
             </div>
             {/* <div className="mt-2">
               <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -199,12 +215,15 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
         );
       case "launch":
         // Use dynamic launch data from investment tracking
-        const launchTotalInvestment = investmentData?.franchise?.totalInvestment || price;
+        const launchTotalInvestmentUSD = investmentData?.franchise?.totalInvestment || price;
         const launchFundingPercentage = investmentData?.investment?.fundingPercentage || 0;
         const progressPercent = calculateLaunchProgress();
 
+        // Convert USD amount to current currency
+        const launchTotalInvestment = convertUSDToCurrentCurrency(launchTotalInvestmentUSD);
+
         // Calculate correct total shares for launch phase
-        const launchTotalShares = calculateTotalShares(launchTotalInvestment);
+        const launchTotalShares = calculateTotalShares(launchTotalInvestment, exchangeRates, selectedCurrency);
         const launchSoldShares = investmentData?.investment?.totalShares || 0;
         const launchInvestorsCount = investmentData?.investors?.totalCount || 0;
 
@@ -253,17 +272,23 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
           </>
         );
       case "live":
-        // Use dynamic token data if available, fallback to props or calculated values
-        const liveMonthlyRevenue = tokenData?.monthlyRevenue || 0;
-        const liveMonthlyExpenses = tokenData?.monthlyExpenses || 0;
+        // Use dynamic token data if available, fallback to props or calculated values (all in USD)
+        const liveMonthlyRevenueUSD = tokenData?.monthlyRevenue || 0;
+        const liveMonthlyExpensesUSD = tokenData?.monthlyExpenses || 0;
+        const liveTotalRevenueUSD = tokenData?.totalRevenue || currentBalance || 150000;
+        const liveTotalInvestmentUSD = investmentData?.franchise?.totalInvestment || totalBudget || 300000;
+
+        // Convert all USD amounts to current currency
+        const liveMonthlyRevenue = convertUSDToCurrentCurrency(liveMonthlyRevenueUSD);
+        const liveMonthlyExpenses = convertUSDToCurrentCurrency(liveMonthlyExpensesUSD);
         const liveNetProfit = liveMonthlyRevenue - liveMonthlyExpenses;
-        const liveTotalRevenue = tokenData?.totalRevenue || currentBalance || 150000;
-        const liveTotalInvestment = investmentData?.franchise?.totalInvestment || totalBudget || 300000;
+        const liveTotalRevenue = convertUSDToCurrentCurrency(liveTotalRevenueUSD);
+        const liveTotalInvestment = convertUSDToCurrentCurrency(liveTotalInvestmentUSD);
 
         // Calculate correct total shares for live franchise
-        const liveTotalShares = calculateTotalShares(liveTotalInvestment);
+        const liveTotalShares = calculateTotalShares(liveTotalInvestment, exchangeRates, selectedCurrency);
 
-        const liveTokenPrice = tokenData?.tokenPrice || FIXED_AED_PER_SHARE;
+        const liveTokenPrice = tokenData?.tokenPrice || FIXED_USDT_PER_SHARE;
         const liveMarketCap = liveTotalShares * liveTokenPrice;
 
         // Calculate performance metrics

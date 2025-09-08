@@ -317,7 +317,7 @@ function Header() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4 w-2/3">
                 {/* Logo */}
-                <Link href="/home" className="flex items-center cursor-pointer ">
+                <Link href="/" className="flex items-center cursor-pointer ">
                   <div className="flex items-center cursor-pointer">
                     <Image
                       src="/logo.svg"
@@ -496,9 +496,9 @@ function Header() {
                                   {convexUser?.first_name}{" "}
                                   {convexUser?.family_name}
                                 </h3>
-                                {/* <p className="text-xs text-gray-500 truncate">
+                                <p className="text-xs text-gray-500 truncate">
                                                             {convexUser?.email}
-                                                            </p> */}
+                                                            </p>
                               </div>
                             </div>
                           </Link>

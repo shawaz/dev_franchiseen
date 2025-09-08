@@ -51,7 +51,8 @@ interface FormData {
   logoUrl: string;
   industry_id: string;
   category_id: string;
-  costPerShare: number; // Changed from costPerArea to costPerShare (in local currency)
+  costPerShare: number; // Fixed at 1 USDT per share (internal calculation)
+  costPerSqft: number; // Cost per square foot in local currency
   min_area: number;
   serviceable_countries: string[];
   currency: string;
@@ -131,7 +132,7 @@ const selectStylesCategory = makeSelectStyles<CategoryOption, false>();
 
 export default function RegisterBrandPage() {
   const { isSignedIn, isLoaded } = useUser();
-  const { selectedCurrency, currencies, exchangeRates } = useGlobalCurrency();
+  const { selectedCurrency, currencies, exchangeRates, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
 
   // Get current currency info with symbol
   const currentCurrency = currencies.find(c => c.code === selectedCurrency) || currencies[0];
@@ -156,10 +157,11 @@ export default function RegisterBrandPage() {
     logoUrl: '',
     industry_id: '',
     category_id: '',
-    costPerShare: 0, // User must enter cost per share
+    costPerShare: 1, // Fixed at 1 USDT per share (internal)
+    costPerSqft: 0, // User must enter cost per sqft in local currency
     min_area: 0, // User must enter minimum area
     serviceable_countries: [],
-    currency: 'AED', // Default to AED
+    currency: 'USD', // Default to USD
     companyDocuments: [],
     franchiseStartingBudget: 0,
     website: '',
@@ -241,7 +243,8 @@ export default function RegisterBrandPage() {
       logoUrl: '',
       industry_id: '',
       category_id: '',
-      costPerShare: 0, // User must enter cost per share
+      costPerShare: 1, // Fixed at 1 USDT per share (internal)
+      costPerSqft: 0, // User must enter cost per sqft
       min_area: 0, // User must enter minimum area
       serviceable_countries: [],
       currency: currentCurrency.code,
@@ -284,7 +287,7 @@ export default function RegisterBrandPage() {
       let processedValue: string | number = value;
 
       // Handle number fields
-      if (name === 'costPerShare' || name === 'min_area') {
+      if (name === 'costPerShare' || name === 'costPerSqft' || name === 'min_area') {
         // Convert to number, but handle empty strings gracefully
         processedValue = value === '' ? 0 : Number(value);
         // Ensure we don't get NaN
@@ -303,16 +306,16 @@ export default function RegisterBrandPage() {
         newData.slug = generateSlug(value);
       }
 
-      // Calculate franchise starting budget and shares when cost per share or min area changes
-      if (name === 'costPerShare' || name === 'min_area') {
-        const costPerShare = name === 'costPerShare' ? (processedValue as number) : prev.costPerShare;
+      // Calculate franchise starting budget and shares when cost per sqft or min area changes
+      if (name === 'costPerSqft' || name === 'min_area') {
+        const costPerSqftLocal = name === 'costPerSqft' ? (processedValue as number) : prev.costPerSqft;
         const minArea = name === 'min_area' ? (processedValue as number) : prev.min_area;
 
-        if (costPerShare > 0 && minArea > 0) {
-          // Calculate minimum budget based on area and cost per share
-          // Assume 1 share per sq ft as a baseline
-          const totalShares = minArea; // 1 share per sq ft minimum
-          const franchiseStartingBudget = totalShares * costPerShare; // Total budget in local currency
+        if (costPerSqftLocal > 0 && minArea > 0) {
+          // Calculate minimum budget based on area and cost per sqft in local currency
+          // Cost per share is fixed at 1 USDT, but we work in local currency
+          const totalInvestmentLocal = minArea * costPerSqftLocal; // Total investment in local currency
+          const franchiseStartingBudget = totalInvestmentLocal; // Same as total investment in local currency
 
           newData.franchiseStartingBudget = franchiseStartingBudget;
         }
@@ -434,7 +437,7 @@ export default function RegisterBrandPage() {
         });
         return !!(formData.serviceable_countries.length > 0 && hasAllCountryDocs);
       case 3:
-        return !!(formData.costPerShare > 0 && formData.min_area > 0);
+        return !!(formData.costPerSqft > 0 && formData.min_area > 0);
       default:
         return false;
     }
@@ -489,8 +492,8 @@ export default function RegisterBrandPage() {
       toast.error('Category is required');
       return;
     }
-    if (formData.costPerShare <= 0) {
-      toast.error('Cost per share must be greater than 0');
+    if (formData.costPerSqft <= 0) {
+      toast.error('Cost per sqft must be greater than 0');
       return;
     }
     if (formData.min_area <= 0) {
@@ -562,6 +565,15 @@ export default function RegisterBrandPage() {
       }
 
       console.log('[Register] Calling Convex mutation: businesses.create');
+      // Convert cost per sqft to USD for consistent storage
+      const costPerSqftInUSD = convertToUSDT(Number(formData.costPerSqft), selectedCurrency);
+
+      console.log('[Register] Converting cost to USD:', {
+        originalCost: formData.costPerSqft,
+        originalCurrency: selectedCurrency,
+        costInUSD: costPerSqftInUSD
+      });
+
       console.log('[Register] Calling Convex mutation: businesses.create');
       const result = await createBusiness({
         name: formData.name,
@@ -569,10 +581,10 @@ export default function RegisterBrandPage() {
         logoUrl,
         industry_id: formData.industry_id,
         category_id: formData.category_id,
-        costPerArea: Number(formData.costPerShare), // Save cost per share as cost per area for now
+        costPerArea: costPerSqftInUSD, // Save cost per sqft in USD (standardized)
         min_area: Number(formData.min_area),
         serviceable_countries: formData.serviceable_countries,
-        currency: 'AED', // Always save as AED
+        currency: 'USD', // Always store in USD for consistency
       });
       console.log('[Register] Convex mutation result received');
 
@@ -930,36 +942,36 @@ export default function RegisterBrandPage() {
 
 
                     <div>
-                      <label htmlFor="costPerShare" className="block text-sm justify-between flex font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Cost Per Share *({currentCurrencyDetails.code.toUpperCase()})
-                        {selectedCurrency !== 'aed' && (
-                          <span className="text-xs text-gray-500 ml-2">
-                            (≈ AED {(formData.costPerShare * (exchangeRates['aed'] / exchangeRates[selectedCurrency] || 1)).toFixed(2)})
-                          </span>
-                        )}
+                      <label htmlFor="costPerSqft" className="block text-sm justify-between flex font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Cost Per Sqft *({currentCurrencyDetails.code.toUpperCase()})
+                        <span className="text-xs text-gray-500 ml-2">
+                          (≈ USDT {convertToUSDT(formData.costPerSqft).toFixed(2)})
+                        </span>
                       </label>
+                      {formData.costPerSqft > 0 && (
+                        <p className="text-xs text-blue-600 mb-2">
+                          💡 All costs are stored in USD for consistency across the platform
+                        </p>
+                      )}
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
                           {currentCurrencyDetails.symbol}
                         </span>
                         <Input
                           type="number"
-                          id="costPerShare"
-                          name="costPerShare"
-                          value={formData.costPerShare || ''}
+                          id="costPerSqft"
+                          name="costPerSqft"
+                          value={formData.costPerSqft || ''}
                           onChange={handleInputChange}
                           className="w-full h-11 pl-12 pr-4 bg-white dark:bg-stone-700 border border-gray-300 dark:border-stone-600 focus:ring-2 focus:ring-primary focus:border-primary"
-                          placeholder={`Enter cost per share in ${currentCurrencyDetails.code.toUpperCase()}`}
+                          placeholder={`Enter cost per sqft in ${currentCurrencyDetails.code.toUpperCase()}`}
                           required
                           min={0.01}
                           step={0.01}
                         />
                       </div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {selectedCurrency === 'aed'
-                          ? 'Each share costs AED 10. Set the price per share for your franchise.'
-                          : 'Each share is equivalent to AED 10. Set your local currency price per share.'
-                        }
+                        Each share costs 1 USDT (≈ {currentCurrencyDetails.symbol}{convertFromUSDT(1).toFixed(2)}). Set the price per square foot for your franchise.
                       </div>
                     </div>
 
@@ -982,17 +994,24 @@ export default function RegisterBrandPage() {
 
 
                   {/* Franchise Starting Budget Display */}
-                  {formData.costPerShare > 0 && formData.min_area > 0 ? (
+                  {formData.costPerSqft > 0 && formData.min_area > 0 ? (
                     <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-6">
                       <h4 className="text-lg font-medium text-green-800 dark:text-green-200 mb-3">
                         Franchise Starting Budget Calculation
                       </h4>
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
+                          <span className="text-sm text-green-700 dark:text-green-300">Cost per sqft:</span>
+                          <span className="font-medium text-green-800 dark:text-green-200">
+                            {currentCurrencyDetails.symbol}{formData.costPerSqft}
+                            <span className="text-xs ml-1">(≈ USDT {convertToUSDT(formData.costPerSqft).toFixed(2)})</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
                           <span className="text-sm text-green-700 dark:text-green-300">Cost per share:</span>
                           <span className="font-medium text-green-800 dark:text-green-200">
-                            {currentCurrencyDetails.symbol}{formData.costPerShare}
-                            {selectedCurrency !== 'aed' && ' (≈ AED 10)'}
+                            {currentCurrencyDetails.symbol}{convertFromUSDT(1).toFixed(2)}
+                            <span className="text-xs ml-1">(≈ USDT 1)</span>
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
@@ -1006,22 +1025,17 @@ export default function RegisterBrandPage() {
                               {currentCurrencyDetails.symbol}{formData.franchiseStartingBudget.toLocaleString()}
                             </span>
                           </div>
-                          {selectedCurrency !== 'aed' && (
-                            <div className="flex justify-between items-center mt-2">
-                              <span className="text-sm text-green-700 dark:text-green-300">In AED:</span>
-                              <span className="text-lg font-semibold text-green-800 dark:text-green-200">
-                                AED {(formData.franchiseStartingBudget * (exchangeRates['aed'] / exchangeRates[selectedCurrency] || 1)).toFixed(2)}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex justify-between items-center mt-2">
+                            <span className="text-sm text-green-700 dark:text-green-300">In USDT:</span>
+                            <span className="text-lg font-semibold text-green-800 dark:text-green-200">
+                              USDT {convertToUSDT(formData.franchiseStartingBudget).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <p className="text-xs text-green-700 dark:text-green-300 mt-3 bg-green-100 dark:bg-green-900/40 p-2 rounded">
                         <strong>Note:</strong> This is the minimum starting budget for franchisees.
-                        {selectedCurrency === 'aed'
-                          ? 'Each share costs AED 10.'
-                          : `Each share costs AED 10 (equivalent to ${currentCurrencyDetails.symbol}${formData.costPerShare} in your local currency).`
-                        }
+                        Each share costs 1 USDT (≈ {currentCurrencyDetails.symbol}{convertFromUSDT(1).toFixed(2)}). The total investment is calculated as: Area × Cost per sqft.
                       </p>
                     </div>
                   ) : (

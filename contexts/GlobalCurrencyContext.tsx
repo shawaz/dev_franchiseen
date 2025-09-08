@@ -16,6 +16,8 @@ interface GlobalCurrencyContextType {
   exchangeRates: { [key: string]: number };
   formatAmount: (amount: number, currency?: string) => string;
   convertFromSOL: (solAmount: number, targetCurrency?: string) => number;
+  convertFromUSDT: (usdtAmount: number, targetCurrency?: string) => number;
+  convertToUSDT: (amount: number, fromCurrency?: string) => number;
   loading: boolean;
   refreshRates: () => Promise<void>;
 }
@@ -44,22 +46,42 @@ export function GlobalCurrencyProvider({ children }: { children: React.ReactNode
   const refreshRates = async () => {
     setLoading(true);
     try {
+      console.log('Fetching exchange rates...');
+
+      // Make a single API call to get all SOL prices
+      const prices = await coinGeckoService.getSolPrices();
+      console.log('Received SOL prices:', prices);
+
+      // Convert to rates object
       const rates: { [key: string]: number } = {};
-      
+
       for (const currency of SUPPORTED_CURRENCIES) {
-        try {
-          const prices = await coinGeckoService.getSolPrices();
-          const price = prices[currency.code as keyof typeof prices];
+        const price = prices[currency.code as keyof typeof prices];
+        if (price && price > 0) {
           rates[currency.code] = price;
-        } catch (error) {
-          console.warn(`Failed to fetch ${currency.code} rate:`, error);
-          // Fallback rates
-          rates[currency.code] = currency.code === 'usd' ? 100 : 
-                                currency.code === 'aed' ? 367 : 
-                                currency.code === 'sar' ? 375 : 100;
+        } else {
+          console.warn(`Missing or invalid price for ${currency.code}, using fallback`);
+          // Use fallback rate for this specific currency
+          const fallbackRates: { [key: string]: number } = {
+            usdt: 20,   // 1 SOL = 20 USDT
+            usd: 20,    // 1 SOL = 20 USD
+            eur: 18.5,  // 1 SOL = 18.5 EUR
+            gbp: 16,    // 1 SOL = 16 GBP
+            jpy: 3000,  // 1 SOL = 3000 JPY
+            aud: 30,    // 1 SOL = 30 AUD
+            cad: 27,    // 1 SOL = 27 CAD
+            chf: 18,    // 1 SOL = 18 CHF
+            cny: 145,   // 1 SOL = 145 CNY
+            inr: 1800,  // 1 SOL = 1800 INR (so 1 USDT = 90 INR)
+            aed: 73,    // 1 SOL = 73 AED
+            sar: 75,    // 1 SOL = 75 SAR
+            sgd: 27,    // 1 SOL = 27 SGD
+          };
+          rates[currency.code] = fallbackRates[currency.code] || 100;
         }
       }
-      
+
+      console.log('Final exchange rates:', rates);
       setExchangeRates(rates);
     } catch (error) {
       console.error('Failed to fetch exchange rates:', error);
@@ -93,6 +115,49 @@ export function GlobalCurrencyProvider({ children }: { children: React.ReactNode
     return solAmount * rate;
   };
 
+  // Direct USDT exchange rates (1 USDT = X local currency)
+  const getUSDTExchangeRates = () => {
+    return {
+      usdt: 1,      // 1 USDT = 1 USDT
+      usd: 1,       // 1 USDT = 1 USD (approximately)
+      eur: 0.925,   // 1 USDT = 0.925 EUR
+      gbp: 0.80,    // 1 USDT = 0.80 GBP
+      jpy: 150,     // 1 USDT = 150 JPY
+      aud: 1.50,    // 1 USDT = 1.50 AUD
+      cad: 1.35,    // 1 USDT = 1.35 CAD
+      chf: 0.90,    // 1 USDT = 0.90 CHF
+      cny: 7.25,    // 1 USDT = 7.25 CNY
+      inr: 90,      // 1 USDT = 90 INR
+      aed: 3.65,    // 1 USDT = 3.65 AED
+      sar: 3.75,    // 1 USDT = 3.75 SAR
+      sgd: 1.35,    // 1 USDT = 1.35 SGD
+    };
+  };
+
+  // Convert between USDT and other currencies
+  const convertFromUSDT = (usdtAmount: number, targetCurrency?: string) => {
+    const currency = targetCurrency || selectedCurrency;
+    if (currency === 'usdt') return usdtAmount;
+
+    const usdtRates = getUSDTExchangeRates();
+    const rate = usdtRates[currency as keyof typeof usdtRates] || 1;
+
+    // Direct conversion: USDT amount × exchange rate
+    return usdtAmount * rate;
+  };
+
+  // Convert from any currency to USDT
+  const convertToUSDT = (amount: number, fromCurrency?: string) => {
+    const currency = fromCurrency || selectedCurrency;
+    if (currency === 'usdt') return amount;
+
+    const usdtRates = getUSDTExchangeRates();
+    const rate = usdtRates[currency as keyof typeof usdtRates] || 1;
+
+    // Direct conversion: Local amount ÷ exchange rate
+    return amount / rate;
+  };
+
   const value: GlobalCurrencyContextType = {
     selectedCurrency,
     setSelectedCurrency,
@@ -100,6 +165,8 @@ export function GlobalCurrencyProvider({ children }: { children: React.ReactNode
     exchangeRates,
     formatAmount,
     convertFromSOL,
+    convertFromUSDT,
+    convertToUSDT,
     loading,
     refreshRates,
   };
