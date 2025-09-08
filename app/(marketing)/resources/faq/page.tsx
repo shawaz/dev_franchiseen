@@ -1,13 +1,14 @@
+'use client';
+
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   ChevronDown,
   ChevronUp,
   HelpCircle,
-  Wallet,
   Shield,
   Zap,
   Users,
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
   Clock,
@@ -354,18 +355,18 @@ export default function FAQPage() {
               Our support team is here to help you understand the platform and get started with your investments.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
+              <Link
                 href="/resources/support"
                 className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-semibold hover:bg-blue-50 transition-colors duration-200"
               >
                 Contact Support
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/resources/help"
                 className="border-2 border-white text-white px-8 py-4 rounded-2xl font-semibold hover:bg-white/10 transition-colors duration-200"
               >
                 Visit Help Center
-              </a>
+              </Link>
             </div>
           </div>
         </div>

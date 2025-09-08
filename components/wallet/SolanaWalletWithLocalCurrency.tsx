@@ -4,25 +4,15 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { CreditCard, Zap, Wallet, RefreshCw, PlusCircle, ArrowUpDown } from 'lucide-react';
+import { CreditCard, Wallet, PlusCircle, ArrowUpDown } from 'lucide-react';
 import { useSolana } from '@/hooks/useSolana';
 import { useModal } from '@/contexts/ModalContext';
 import { formatSol } from '@/lib/coingecko';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import { Button } from '../ui/button';
-import MobileWalletConnect from './MobileWalletConnect';
 
-// Extend Window interface for Phantom
-declare global {
-  interface Window {
-    phantom?: {
-      solana?: {
-        isPhantom?: boolean;
-        connect?: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: any }>;
-      };
-    };
-  }
-}
+
+// Use the existing PhantomWindow interface from @solana/wallet-adapter-phantom
 
 interface SolanaWalletWithLocalCurrencyProps {
   onAddMoney?: () => void;
@@ -108,14 +98,8 @@ const SolanaWalletWithLocalCurrency: React.FC<SolanaWalletWithLocalCurrencyProps
         return;
       }
 
-      // Fallback to direct Phantom connection
-      const phantomSolana = window.phantom?.solana;
-      if (phantomSolana?.isPhantom) {
-        await phantomSolana.connect({ onlyIfTrusted: false });
-      } else {
-        // Show wallet modal if Phantom not detected
-        setVisible(true);
-      }
+      // Fallback to wallet modal if adapter connection not available
+      setVisible(true);
     } catch (error) {
       console.error('Connection failed:', error);
       // Fallback to wallet modal

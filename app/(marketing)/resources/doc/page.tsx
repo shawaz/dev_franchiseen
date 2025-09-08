@@ -14,8 +14,7 @@ import {
   Smartphone,
   Globe,
   Lock,
-  FileText,
-  CreditCard
+  FileText
 } from 'lucide-react';
 
 export default function DocumentationPage() {
