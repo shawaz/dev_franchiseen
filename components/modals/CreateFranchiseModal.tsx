@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { X, ArrowLeft, ArrowRight, Check, MapPin, Building, DollarSign, Star, TrendingUp, Search, Wallet, Calculator, AlertTriangle, Navigation } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Check, MapPin, Building, Search, Wallet, Calculator, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -14,12 +13,12 @@ import { api } from '@/convex/_generated/api';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useFranchiseProgram } from '@/hooks/useFranchiseProgram';
-import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import { coinGeckoService } from '@/lib/coingecko';
 import { toast } from 'sonner';
 import { Id } from '@/convex/_generated/dataModel';
 
 import { useSolana } from '@/hooks/useSolana';
+import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 
 interface TypeformCreateFranchiseModalProps {
   isOpen: boolean;
@@ -77,49 +76,55 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
   const [searchQuery, setSearchQuery] = useState('');
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [invoice, setInvoice] = useState<any>(null);
   const [contractDetails, setContractDetails] = useState<any>(null);
 
   // Map related state
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<any>(null);
-  const [placesService, setPlacesService] = useState<any>(null);
   const [marker, setMarker] = useState<any>(null);
-  const [existingFranchises, setExistingFranchises] = useState<any[]>([]);
   const [conflictingLocation, setConflictingLocation] = useState<boolean>(false);
 
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, connecting, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const { createFranchise, investInFranchise, connected: programConnected } = useFranchiseProgram();
-  const { formatAmount, selectedCurrency, exchangeRates, currencies, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
+  const { selectedCurrency, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
+
+  // Debug wallet connection state
+  useEffect(() => {
+    console.log('Wallet connection state:', {
+      connected,
+      connecting,
+      publicKey: publicKey?.toString(),
+      wallet: wallet?.adapter?.name,
+      programConnected
+    });
+  }, [connected, connecting, publicKey, wallet, programConnected]);
+
+  // Helper function to format currency amounts correctly
+  const formatCurrencyAmount = (amount: number) => {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: selectedCurrency.toUpperCase(),
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
 
   // Helper function to convert business cost to current user's currency
   const convertBusinessCostToCurrentCurrency = (business: Business) => {
     if (!business?.costPerArea) return 0;
 
-    const costPerArea = business.costPerArea;
-    const businessCurrency = business.currency || 'USD'; // Default to USD for new data
+    // Business cost is stored in USD, convert to current user's currency
+    // Since USD ≈ USDT, we can use convertFromUSDT directly
+    const costInLocal = convertFromUSDT(business.costPerArea);
 
-    console.log('Converting business cost:', {
-      costPerArea,
-      businessCurrency,
-      selectedCurrency,
-      businessName: business.name
+    console.log('Converted business cost:', {
+      original: business.costPerArea,
+      costInLocal,
+      selectedCurrency
     });
 
-    // If business currency is the same as selected currency, no conversion needed
-    if (businessCurrency.toLowerCase() === selectedCurrency.toLowerCase()) {
-      return costPerArea;
-    }
-
-    // If business is stored in USD, convert USD to current currency
-    if (businessCurrency.toLowerCase() === 'usd') {
-      return convertFromUSDT(costPerArea, selectedCurrency);
-    }
-
-    // For legacy data: Convert from business currency to USDT, then to selected currency
-    const costInUSDT = convertToUSDT(costPerArea, businessCurrency.toLowerCase());
-    return convertFromUSDT(costInUSDT, selectedCurrency);
+    return costInLocal;
   };
 
   // Convex mutations
@@ -215,12 +220,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
     }
   }, [currentStep, formData.selectedBusiness]);
 
-  // Update existing franchises when locations are loaded
-  useEffect(() => {
-    if (existingFranchiseLocations) {
-      setExistingFranchises(existingFranchiseLocations);
-    }
-  }, [existingFranchiseLocations]);
+  // existingFranchiseLocations is used directly in the component
 
   const initializeGoogleMaps = () => {
     if (!mapRef.current) {
@@ -306,9 +306,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
 
       // Initialize Places service
       if (window.google.maps.places) {
-        const placesService = new window.google.maps.places.PlacesService(mapInstance);
-        setPlacesService(placesService);
-        console.log('Places service initialized');
+        console.log('Places service available');
       } else {
         console.error('Google Places API not available');
         toast.error('Google Places service not available. Please refresh the page.');
@@ -476,56 +474,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
     }
   };
 
-  const handleSubmit = async () => {
-    if (!connected) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    if (!formData.selectedBusiness) {
-      toast.error('Please select a business');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const totalInvestment = calculateTotalInvestment();
-
-      const tx = await createFranchise(
-        formData.selectedBusiness.slug || formData.selectedBusiness.name.toLowerCase().replace(/\s+/g, '-'),
-        formData.locationDetails.franchiseSlug,
-        formData.location?.address || '',
-        formData.locationDetails.buildingName,
-        parseFloat(formData.locationDetails.sqft),
-        parseFloat(formData.locationDetails.costPerArea),
-        calculateTotalShares() // Use calculated value directly
-      );
-
-      // Create invoice
-      const invoiceData = {
-        id: `INV-${Date.now()}`,
-        franchiseSlug: formData.locationDetails.franchiseSlug,
-        businessName: formData.selectedBusiness.name,
-        location: formData.location?.address,
-        totalInvestment,
-        shares: formData.investment.selectedShares,
-        sharePrice: calculateSharePrice(),
-        status: 'Pending Approval',
-        createdAt: new Date().toISOString(),
-        transactionHash: tx
-      };
-
-      setInvoice(invoiceData);
-      setCurrentStep(totalSteps + 1); // Show invoice step
-
-      toast.success('Franchise proposal submitted successfully!');
-    } catch (error) {
-      console.error('Error creating franchise:', error);
-      toast.error('Failed to create franchise proposal');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // handleSubmit function removed as it's not used in the component
 
   const prevStep = () => {
     if (currentStep > 1) {
@@ -1067,21 +1016,23 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                       <div className="flex items-center gap-6 text-sm text-muted-foreground justify-end">
                           {business.costPerArea && (
                             <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4" />
                               <div className="text-right">
                                 {(() => {
-const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerArea, selectedCurrency) : 0;
-                                  // Calculate USDT equivalent based on business currency
-                                  const businessCurrency = business.currency || 'USD';
-                                  const usdtEquivalent = businessCurrency.toLowerCase() === 'usd'
-                                    ? business.costPerArea
-                                    : convertToUSDT(business.costPerArea || 0, businessCurrency.toLowerCase());
-
+                                  const businessCost = business.costPerArea || 0;
+                                  const displayCost = convertBusinessCostToCurrentCurrency(business);
+                                  
                                   return (
-                                    <>
-                                      <div className="font-medium">{formatAmount(convertedCost)}/sq ft</div>
-                                      <div className="text-xs text-muted-foreground">(≈ USDT {usdtEquivalent?.toFixed(2)})</div>
-                                    </>
+                                    <div className="space-y-1">
+                                      <div className="font-medium">
+                                        {formatCurrencyAmount(displayCost)}/sq ft
+                                        <span className="ml-1 text-xs text-muted-foreground">
+                                          ({selectedCurrency.toUpperCase()})
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        ≈ {businessCost.toFixed(2)} USD
+                                      </div>
+                                    </div>
                                   );
                                 })()}
                               </div>
@@ -1309,8 +1260,8 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                         const businessCurrency = formData.selectedBusiness.currency || 'USD';
                         const usdtEquivalent = businessCurrency.toLowerCase() === 'usd'
                           ? formData.selectedBusiness.costPerArea
-                          : convertToUSDT(formData.selectedBusiness.costPerArea, businessCurrency.toLowerCase());
-                        return `${formatAmount(convertedCost)} (≈ USDT ${usdtEquivalent.toFixed(2)})`;
+                          : convertToUSDT(convertedCost); // Use converted cost instead of original + currency
+                        return `${formatCurrencyAmount(convertedCost)} (≈ USDT ${usdtEquivalent.toFixed(2)})`;
                       })() : 'Not set by brand owner'}
                     </div>
                     {/* <p className="text-xs text-muted-foreground mt-1">
@@ -1327,16 +1278,16 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                       <h3 className="font-medium text-yellow-800 dark:text-yellow-200">Investment Calculation</h3>
                     </div>
                     <div className="text-2xl font-bold text-yellow-800 dark:text-yellow-200">
-                      Total Investment: {formatAmount(calculateTotalInvestment())}
+                      Total Investment: {formatCurrencyAmount(calculateTotalInvestment())}
                       <span className="text-sm ml-2">(≈ USDT {convertToUSDT(calculateTotalInvestment()).toFixed(2)})</span>
                     </div>
                     <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
                       {formData.locationDetails.sqft} sq ft × {(() => {
                         if (formData.selectedBusiness?.costPerArea) {
                           const convertedCost = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
-                          return formatAmount(convertedCost);
+                          return formatCurrencyAmount(convertedCost);
                         }
-                        return formatAmount(0);
+                        return formatCurrencyAmount(0);
                       })()} per sq ft
                     </p>
                   </div>
@@ -1442,6 +1393,28 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
               exit={{ opacity: 0, x: -20 }}
               className="p-6 space-y-6"
             >
+              {/* Wallet Connection Status */}
+              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : connecting ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  <div>
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                      Wallet Status: {connected ? 'Connected' : connecting ? 'Connecting...' : 'Not Connected'}
+                    </h4>
+                    {connected && publicKey && (
+                      <p className="text-sm text-blue-600 dark:text-blue-400">
+                        {publicKey.toString().slice(0, 8)}...{publicKey.toString().slice(-8)}
+                      </p>
+                    )}
+                    {wallet && (
+                      <p className="text-xs text-blue-500 dark:text-blue-500">
+                        Using: {wallet.adapter.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
                {/* Wallet Balance Display */}
               {connected && (
                 <div className="bg-stone-50 dark:bg-stone-800 rounded-lg p-4">
@@ -1460,8 +1433,8 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
               )}
 
               {!connected && (
-                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4">
-                  <div className="flex items-center gap-3">
+                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
+                  <div className="flex items-center gap-3 mb-3">
                     <Wallet className="h-5 w-5 text-yellow-600" />
                     <div>
                       <h4 className="font-medium text-yellow-800 dark:text-yellow-200">Wallet Required</h4>
@@ -1469,6 +1442,32 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                         Connect your Solana wallet to purchase shares
                       </p>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => {
+                        console.log('Connect wallet button clicked');
+                        console.log('Available wallets:', (window as any).phantom, (window as any).solana);
+                        setVisible(true);
+                      }}
+                      disabled={connecting}
+                      className="w-full bg-yellow-600 hover:bg-yellow-700 text-white disabled:opacity-50"
+                    >
+                      {connecting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          <Wallet className="h-4 w-4 mr-2" />
+                          Connect Wallet Now
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center">
+                      Make sure you have Phantom wallet installed
+                    </p>
                   </div>
                 </div>
               )}
@@ -1527,7 +1526,7 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                       className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center"
                     />
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Price per share: {formatAmount(convertFromUSDT(1))} (≈ USDT 1.00)
+                      Price per share: {formatCurrencyAmount(convertFromUSDT(1))} (≈ USDT 1.00)
                     </div>
                   </div>
                 </div>
@@ -1561,22 +1560,22 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        {formData.investment.selectedShares} shares × {formatAmount(convertFromUSDT(1))}
+                        {formData.investment.selectedShares} shares × {formatCurrencyAmount(convertFromUSDT(1))}
                       </span>
-                      <span className="dark:text-white">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1))}</span>
+                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1))}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Platform Fee (2%)</span>
-                      <span className="dark:text-white">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.02)}</span>
+                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.02)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">GST (18%)</span>
-                      <span className="dark:text-white">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.18)}</span>
+                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.18)}</span>
                     </div>
                     <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
                       <div className="flex justify-between font-semibold">
                         <span className="dark:text-white">Total Amount</span>
-                        <span className="text-green-600 dark:text-green-400">{formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}</span>
+                        <span className="text-green-600 dark:text-green-400">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}</span>
                       </div>
                     </div>
                   </div>
@@ -1610,18 +1609,18 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                         let costPerAreaUSD = 0;
                         if (formData.selectedBusiness?.costPerArea) {
                           const businessCurrency = formData.selectedBusiness.currency || 'USD';
+                          costPerArea = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
                           costPerAreaUSD = businessCurrency.toLowerCase() === 'usd'
                             ? formData.selectedBusiness.costPerArea
-                            : convertToUSDT(formData.selectedBusiness.costPerArea, businessCurrency.toLowerCase());
-                          costPerArea = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
+                            : convertToUSDT(costPerArea); // Use converted cost
                         } else {
                           const inputCost = parseFloat(formData.locationDetails.costPerArea) || 0;
-                          costPerAreaUSD = convertToUSDT(inputCost, selectedCurrency);
                           costPerArea = inputCost;
+                          costPerAreaUSD = convertToUSDT(inputCost);
                         }
                         return (
                           <>
-                            {formatAmount(costPerArea)}
+                            {formatCurrencyAmount(costPerArea)}
                             <span className="text-xs ml-1">(≈ USDT {costPerAreaUSD.toFixed(2)})</span>
                           </>
                         );
@@ -1631,7 +1630,7 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                   <div className="border-t border-stone-200 dark:border-stone-600 pt-3">
                     <div className="flex justify-between">
                       <span className="font-semibold">Total Project Investment:</span>
-                      <span className="text-xl font-bold text-green-600">{formatAmount(calculateTotalInvestment())}</span>
+                      <span className="text-xl font-bold text-green-600">{formatCurrencyAmount(calculateTotalInvestment())}</span>
                     </div>
                   </div>
                 </div>
@@ -1694,7 +1693,7 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Total Investment:</span>
                     <p className="font-semibold text-lg text-green-600">
-                      {formatAmount(contractDetails.amountLocal)}
+                      {formatCurrencyAmount(contractDetails.amountLocal)}
                     </p>
                   </div>
                   <div>
@@ -1820,7 +1819,7 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
               {/* Left side - Payment totals */}
               <div className="space-y-1">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Total Amount: {formatAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}
+                  Total Amount: {formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}
                 </div>
                 <div className="text-lg font-semibold">
                   Pay: {(formData.investment.selectedShares * calculateSharePrice() * 1.2).toFixed(4)} SOL
@@ -1854,10 +1853,15 @@ const convertedCost = business.costPerArea ? convertFromUSDT(business.costPerAre
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => setVisible(true)}
+                    onClick={() => {
+                      console.log('Footer connect wallet button clicked');
+                      console.log('Wallet modal setVisible:', setVisible);
+                      setVisible(true);
+                    }}
                     variant="outline"
-                    className="px-6"
+                    className="px-6 border-blue-500 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950"
                   >
+                    <Wallet className="h-4 w-4 mr-2" />
                     Connect Wallet
                   </Button>
                 )}

@@ -135,7 +135,7 @@ export default function RegisterBrandPage() {
   const { selectedCurrency, currencies, exchangeRates, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
 
   // Get current currency info with symbol
-  const currentCurrency = currencies.find(c => c.code === selectedCurrency) || currencies[0];
+  const currentCurrency = currencies.find((c: { code: string }) => c.code === selectedCurrency) || currencies[0];
   const currentCurrencyDetails = SUPPORTED_CURRENCIES.find(c => c.code === selectedCurrency) || SUPPORTED_CURRENCIES[0];
   const createBusiness = useMutation(api.businesses.create);
   const getUploadSignature = useAction(api.uploadcare.getUploadSignature);
