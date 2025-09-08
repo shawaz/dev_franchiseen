@@ -5,22 +5,23 @@ import Link from 'next/link';
 import { Instagram, Facebook, Youtube } from 'iconsax-reactjs';
 import Image from 'next/image';
 import { Button } from './ui/button';
-import LanguageCurrencyModal from './LanguageCurrencyModal';
+import LocalCurrencySelector from './ui/LocalCurrencySelector';
+// import LanguageCurrencyModal from './LanguageCurrencyModal';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 
 export default function Footer() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'language' | 'currency' | null>(null);
+  // const [modalOpen, setModalOpen] = useState(false);
+  // const [modalType, setModalType] = useState<'language' | 'currency' | null>(null);
   const { selectedCurrency } = useGlobalCurrency();
 
-  const handleOpenModal = (type: 'language' | 'currency') => {
-    setModalType(type);
-    setModalOpen(true);
-  };
-  const handleCloseModal = () => {
-    setModalOpen(false);
-    setModalType(null);
-  };
+  // const handleOpenModal = (type: 'language' | 'currency') => {
+  //   setModalType(type);
+  //   setModalOpen(true);
+  // };
+  // const handleCloseModal = () => {
+  //   setModalOpen(false);
+  //   setModalType(null);
+  // };
 
   return (
     <footer className="bg-white hidden md:block dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-800">
@@ -33,12 +34,14 @@ export default function Footer() {
               <span className="text-xl ml-2 font-bold">FRANCHISEEN</span>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleOpenModal('currency')}>
-                Currency: {selectedCurrency.toUpperCase()}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleOpenModal('language')}>
+              <LocalCurrencySelector
+                compact={true}
+                showLabel={false}
+                className="w-auto"
+              />
+              {/* <Button variant="outline" size="sm" onClick={() => handleOpenModal('language')}>
                 Language: English
-              </Button>
+              </Button> */}
             </div>
 
             <div className="flex gap-4">
@@ -128,7 +131,7 @@ export default function Footer() {
           <Link href="#" className="text-stone-600 dark:text-stone-300 dark:hover:text-yellow-600 hover:text-yellow-600">Terms of Service</Link>
         </div> */}
       </div>
-      <LanguageCurrencyModal isOpen={modalOpen} type={modalType} onClose={handleCloseModal} />
+      {/* <LanguageCurrencyModal isOpen={modalOpen} type={modalType} onClose={handleCloseModal} /> */}
     </footer>
   );
 } 

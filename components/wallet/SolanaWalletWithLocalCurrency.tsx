@@ -12,6 +12,18 @@ import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import { Button } from '../ui/button';
 import MobileWalletConnect from './MobileWalletConnect';
 
+// Extend Window interface for Phantom
+declare global {
+  interface Window {
+    phantom?: {
+      solana?: {
+        isPhantom?: boolean;
+        connect?: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: any }>;
+      };
+    };
+  }
+}
+
 interface SolanaWalletWithLocalCurrencyProps {
   onAddMoney?: () => void;
   className?: string;
@@ -27,7 +39,7 @@ const SolanaWalletWithLocalCurrency: React.FC<SolanaWalletWithLocalCurrencyProps
   className,
   user,
 }) => {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, connect, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
   const { getSOLBalance, requestAirdrop, loading: solanaLoading } = useSolana();
   const { openSendSOLModal } = useModal();
@@ -36,6 +48,7 @@ const SolanaWalletWithLocalCurrency: React.FC<SolanaWalletWithLocalCurrencyProps
   const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [connecting, setConnecting] = useState<boolean>(false);
 
   // Use global currency context
   const { selectedCurrency, convertFromSOL, formatAmount, refreshRates, loading: currencyLoading } = useGlobalCurrency();
@@ -83,6 +96,33 @@ const SolanaWalletWithLocalCurrency: React.FC<SolanaWalletWithLocalCurrencyProps
   // Handle refresh
   const handleRefresh = async () => {
     await Promise.all([refreshBalance(), refreshRates()]);
+  };
+
+  // Direct Phantom connection function
+  const handleDirectConnect = async () => {
+    setConnecting(true);
+    try {
+      // First try the wallet adapter
+      if (connect) {
+        await connect();
+        return;
+      }
+
+      // Fallback to direct Phantom connection
+      const phantomSolana = window.phantom?.solana;
+      if (phantomSolana?.isPhantom) {
+        await phantomSolana.connect({ onlyIfTrusted: false });
+      } else {
+        // Show wallet modal if Phantom not detected
+        setVisible(true);
+      }
+    } catch (error) {
+      console.error('Connection failed:', error);
+      // Fallback to wallet modal
+      setVisible(true);
+    } finally {
+      setConnecting(false);
+    }
   };
 
   return (
@@ -146,8 +186,27 @@ const SolanaWalletWithLocalCurrency: React.FC<SolanaWalletWithLocalCurrencyProps
                 <Wallet className="h-6 w-6" />
               </div>
               <h4 className="text-sm font-semibold mb-2">Connect Your Wallet</h4>
-              <p className="text-purple-100 text-xs mb-3">Connect your Phantom wallet to view your SOL balance</p>
-              <MobileWalletConnect />
+              <p className="text-yellow-100 text-xs mb-3">Connect your Phantom wallet to view your SOL balance</p>
+
+              {/* Direct Connect Button */}
+              <Button
+                onClick={handleDirectConnect}
+                disabled={connecting}
+                className="w-full bg-white/20 hover:bg-white/30 text-white border border-white/30 flex items-center gap-2"
+              >
+                <Wallet className="w-4 h-4" />
+                {connecting ? 'Connecting...' : 'Connect Phantom Wallet'}
+              </Button>
+
+              <div className="mt-3 text-xs text-yellow-200">
+                <p>Auto-detects Phantom wallet</p>
+                <button
+                  onClick={() => window.open('https://phantom.app/download', '_blank')}
+                  className="text-yellow-100 hover:text-white underline mt-1"
+                >
+                  Don't have Phantom? Download here
+                </button>
+              </div>
             </div>
           ) : (
             <>
@@ -219,6 +278,16 @@ const SolanaWalletWithLocalCurrency: React.FC<SolanaWalletWithLocalCurrencyProps
                 >
                   <CreditCard className="h-3 w-3" />
                   Transfer
+                </button>
+              </div>
+
+              {/* Disconnect Option */}
+              <div className="mt-3 text-center">
+                <button
+                  onClick={disconnect}
+                  className="text-yellow-200 hover:text-white text-xs underline"
+                >
+                  Disconnect Wallet
                 </button>
               </div>
             </>
