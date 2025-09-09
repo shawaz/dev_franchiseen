@@ -19,7 +19,7 @@ import {
   Clock,
   Wallet
 } from 'lucide-react';
-import SolanaWalletWithLocalCurrency from '@/components/wallet/SolanaWalletWithLocalCurrency';
+import MultiWalletCard from '@/components/wallet/MultiWalletCard';
 import SolanaTransactions from '@/components/wallet/SolanaTransactions';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import { Id } from '@/convex/_generated/dataModel';
@@ -180,8 +180,8 @@ export default function ProfileDashboard({ user, franchiseDetails }: ProfileDash
   return (
     <div className="space-y-6 py-6">
 
-      {/* Solana Wallet Card */}
-      <SolanaWalletWithLocalCurrency
+      {/* Multi-Wallet Card */}
+      <MultiWalletCard
         onAddMoney={handleAddSOL}
         className="w-full"
         user={user}
