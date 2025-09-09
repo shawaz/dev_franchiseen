@@ -20,6 +20,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { useSolana } from '@/hooks/useSolana';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 
+
 interface TypeformCreateFranchiseModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -87,7 +88,29 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
   const { connected, publicKey, connecting, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const { createFranchise, investInFranchise, connected: programConnected } = useFranchiseProgram();
-  const { selectedCurrency, convertFromUSDT, convertToUSDT } = useGlobalCurrency();
+  const { selectedCurrency, exchangeRates } = useGlobalCurrency();
+
+  // Helper function to convert USD to current user's currency (no SOL involved)
+  const convertUSDToCurrentCurrency = (amountUSD: number) => {
+    if (!amountUSD) return 0;
+    if (selectedCurrency === 'usd') return amountUSD;
+
+    const usdRate = exchangeRates['usd'] || 1;
+    const targetRate = exchangeRates[selectedCurrency] || 1;
+
+    return amountUSD * (targetRate / usdRate);
+  };
+
+  // Helper function to convert current currency to USD (no SOL involved)
+  const convertCurrentCurrencyToUSD = (amount: number) => {
+    if (!amount) return 0;
+    if (selectedCurrency === 'usd') return amount;
+
+    const usdRate = exchangeRates['usd'] || 1;
+    const targetRate = exchangeRates[selectedCurrency] || 1;
+
+    return amount * (usdRate / targetRate);
+  };
 
   // Debug wallet connection state
   useEffect(() => {
@@ -115,8 +138,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
     if (!business?.costPerArea) return 0;
 
     // Business cost is stored in USD, convert to current user's currency
-    // Since USD ≈ USDT, we can use convertFromUSDT directly
-    const costInLocal = convertFromUSDT(business.costPerArea);
+    const costInLocal = convertUSDToCurrentCurrency(business.costPerArea);
 
     console.log('Converted business cost:', {
       original: business.costPerArea,
@@ -562,38 +584,15 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
 
     // Check wallet connection first
     if (!connected || !publicKey) {
-      // Open Phantom for authentication
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      toast.error('Please connect your wallet first');
+      setVisible(true);
+      return "error";
+    }
 
-      if (isMobile) {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
-
-        if (isIOS) {
-          // iOS: Use app scheme for connection
-          const appScheme = `phantom://v1/connect?dapp_encryption_public_key=&cluster=devnet&app_url=${encodeURIComponent(window.location.origin)}`;
-          window.location.href = appScheme;
-        } else if (isAndroid) {
-          // Android: Use intent for connection
-          const intentUrl = `intent://v1/connect?dapp_encryption_public_key=&cluster=devnet&app_url=${encodeURIComponent(window.location.origin)}#Intent;scheme=phantom;package=app.phantom;S.browser_fallback_url=https://play.google.com/store/apps/details?id=app.phantom;end`;
-          window.location.href = intentUrl;
-        }
-
-        // Store context for when user returns
-        localStorage.setItem('phantom_transaction_context', JSON.stringify({
-          timestamp: Date.now(),
-          action: 'franchise_creation',
-          amount: totalAmountSOL,
-          description: `Create franchise: ${formData.locationDetails.buildingName}`,
-          step: 'payment'
-        }));
-
-        return 'error'; // Will return when user comes back
-      } else {
-        // Desktop: Use wallet modal
-        setVisible(true);
-        return 'error';
-      }
+    // Additional wallet validation
+    if (!wallet || !wallet.adapter) {
+      toast.error('Wallet adapter not available');
+      return "error";
     }
 
     if (!programConnected) {
@@ -613,7 +612,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
     }
 
     // Validate cost per area
-    const costPerArea = parseFloat(formData.locationDetails.costPerArea) || formData.selectedBusiness!.costPerArea;
+    const costPerArea = parseFloat(formData.locationDetails.costPerArea) || formData.selectedBusiness!.costPerArea || 0;
     if (!costPerArea || costPerArea <= 0) {
       toast.error('Cost per area must be set by the business owner');
       return 'error';
@@ -678,13 +677,18 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
           // Step 4: Save franchise to Convex database
           let savedFranchiseId = null;
           try {
+            // Calculate USD values for database storage
+            const totalInvestmentLocal = calculateTotalInvestment();
+            const totalInvestmentUSD = convertCurrentCurrencyToUSD(totalInvestmentLocal);
+            const costPerAreaUSD = formData.selectedBusiness?.costPerArea || convertCurrentCurrencyToUSD(parseFloat(formData.locationDetails.costPerArea) || 0);
+
             const franchiseData = await createFranchiseInDB({
               businessId: formData.selectedBusiness!._id,
               locationAddress: formData.location?.address || '',
               building: formData.locationDetails.buildingName,
               carpetArea: parseFloat(formData.locationDetails.sqft),
-              costPerArea: costPerArea,
-              totalInvestment: calculateTotalInvestment(),
+              costPerArea: costPerAreaUSD, // Store USD value
+              totalInvestment: totalInvestmentUSD, // Store USD value
               totalShares: calculateTotalShares(),
               selectedShares: selectedShares,
               slug: franchiseId,
@@ -700,13 +704,17 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
           // Step 5: Create escrow record for payment protection
           if (savedFranchiseId && currentUser) {
             try {
+              if (!currentUser?._id || !currentUser?.email || !pay.signature) {
+                throw new Error('User not authenticated or payment failed');
+              }
+
               await createEscrowRecord({
                 franchiseId: savedFranchiseId.franchiseId,
                 userId: currentUser._id,
                 businessId: formData.selectedBusiness!._id,
                 paymentSignature: pay.signature,
-                amount: totalAmountSOL,
-                amountLocal: selectedShares * sharePrice * 1.2,
+                amount: totalAmountSOL, // SOL amount for blockchain
+                amountUSD: selectedShares * FIXED_USDT_PER_SHARE * 1.2, // USD amount for business logic
                 currency: "SOL",
                 shares: selectedShares,
                 userEmail: currentUser.email,
@@ -731,7 +739,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
             franchiseId,
             businessSlug,
             shares: selectedShares,
-            amountLocal: selectedShares * sharePrice * 1.2,
+            amountLocal: convertUSDToCurrentCurrency(selectedShares * FIXED_USDT_PER_SHARE * 1.2), // Convert USD to local currency
             amountSOL: totalAmountSOL,
             timestamp: new Date().toISOString(),
             contractAddress: `${businessSlug}-${franchiseId}`,
@@ -793,9 +801,9 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
   // Total number of shares is totalInvestment converted to USDT / USDT 1
   const calculateTotalShares = () => {
     const totalInvestmentLocal = calculateTotalInvestment();
-    // Convert local currency to USDT for share calculation
-    const totalInvestmentUSDT = convertToUSDT(totalInvestmentLocal);
-    const totalShares = Math.floor(totalInvestmentUSDT / FIXED_USDT_PER_SHARE);
+    // Convert local currency to USD for share calculation
+    const totalInvestmentUSD = convertCurrentCurrencyToUSD(totalInvestmentLocal);
+    const totalShares = Math.floor(totalInvestmentUSD / FIXED_USDT_PER_SHARE);
     return totalShares;
   };
 
@@ -1258,10 +1266,10 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                       {formData.selectedBusiness?.costPerArea ? (() => {
                         const convertedCost = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
                         const businessCurrency = formData.selectedBusiness.currency || 'USD';
-                        const usdtEquivalent = businessCurrency.toLowerCase() === 'usd'
+                        const usdEquivalent = businessCurrency.toLowerCase() === 'usd'
                           ? formData.selectedBusiness.costPerArea
-                          : convertToUSDT(convertedCost); // Use converted cost instead of original + currency
-                        return `${formatCurrencyAmount(convertedCost)} (≈ USDT ${usdtEquivalent.toFixed(2)})`;
+                          : formData.selectedBusiness.costPerArea; // Business cost is already in USD
+                        return `${formatCurrencyAmount(convertedCost)} (≈ USD ${usdEquivalent.toFixed(2)})`;
                       })() : 'Not set by brand owner'}
                     </div>
                     {/* <p className="text-xs text-muted-foreground mt-1">
@@ -1279,7 +1287,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                     </div>
                     <div className="text-2xl font-bold text-yellow-800 dark:text-yellow-200">
                       Total Investment: {formatCurrencyAmount(calculateTotalInvestment())}
-                      <span className="text-sm ml-2">(≈ USDT {convertToUSDT(calculateTotalInvestment()).toFixed(2)})</span>
+                      <span className="text-sm ml-2">(≈ USD ${convertCurrentCurrencyToUSD(calculateTotalInvestment()).toFixed(2)})</span>
                     </div>
                     <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
                       {formData.locationDetails.sqft} sq ft × {(() => {
@@ -1415,6 +1423,8 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                 </div>
               </div>
 
+
+
                {/* Wallet Balance Display */}
               {connected && (
                 <div className="bg-stone-50 dark:bg-stone-800 rounded-lg p-4">
@@ -1445,10 +1455,30 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                   </div>
                   <div className="space-y-2">
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         console.log('Connect wallet button clicked');
-                        console.log('Available wallets:', (window as any).phantom, (window as any).solana);
-                        setVisible(true);
+
+                        // Check if we're on mobile
+                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                        if (isMobile) {
+                          // Mobile: Direct Phantom connection
+                          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                          const isAndroid = /Android/.test(navigator.userAgent);
+
+                          if (isIOS) {
+                            // iOS: Use Phantom app scheme
+                            const phantomUrl = `phantom://v1/connect?dapp_encryption_public_key=&cluster=devnet&app_url=${encodeURIComponent(window.location.origin)}`;
+                            window.location.href = phantomUrl;
+                          } else if (isAndroid) {
+                            // Android: Use intent for Phantom
+                            const intentUrl = `intent://v1/connect?dapp_encryption_public_key=&cluster=devnet&app_url=${encodeURIComponent(window.location.origin)}#Intent;scheme=phantom;package=app.phantom;S.browser_fallback_url=https://phantom.app/download;end`;
+                            window.location.href = intentUrl;
+                          }
+                        } else {
+                          // Desktop: Use wallet modal
+                          setVisible(true);
+                        }
                       }}
                       disabled={connecting}
                       className="w-full bg-yellow-600 hover:bg-yellow-700 text-white disabled:opacity-50"
@@ -1461,12 +1491,14 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                       ) : (
                         <>
                           <Wallet className="h-4 w-4 mr-2" />
-                          Connect Wallet Now
+                          Connect Phantom Wallet
                         </>
                       )}
                     </Button>
                     <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center">
-                      Make sure you have Phantom wallet installed
+                      {/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+                        ? 'Will open Phantom app on your device'
+                        : 'Make sure you have Phantom wallet installed'}
                     </p>
                   </div>
                 </div>
@@ -1526,7 +1558,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                       className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-center"
                     />
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Price per share: {formatCurrencyAmount(convertFromUSDT(1))} (≈ USDT 1.00)
+                      Price per share: {formatCurrencyAmount(convertUSDToCurrentCurrency(1))} (≈ USD 1.00)
                     </div>
                   </div>
                 </div>
@@ -1560,22 +1592,22 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        {formData.investment.selectedShares} shares × {formatCurrencyAmount(convertFromUSDT(1))}
+                        {formData.investment.selectedShares} shares × {formatCurrencyAmount(convertUSDToCurrentCurrency(1))}
                       </span>
-                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1))}</span>
+                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertUSDToCurrentCurrency(1))}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Platform Fee (2%)</span>
-                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.02)}</span>
+                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertUSDToCurrentCurrency(1) * 0.02)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">GST (18%)</span>
-                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 0.18)}</span>
+                      <span className="dark:text-white">{formatCurrencyAmount(formData.investment.selectedShares * convertUSDToCurrentCurrency(1) * 0.18)}</span>
                     </div>
                     <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
                       <div className="flex justify-between font-semibold">
                         <span className="dark:text-white">Total Amount</span>
-                        <span className="text-green-600 dark:text-green-400">{formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}</span>
+                        <span className="text-green-600 dark:text-green-400">{formatCurrencyAmount(formData.investment.selectedShares * convertUSDToCurrentCurrency(1) * 1.2)}</span>
                       </div>
                     </div>
                   </div>
@@ -1612,16 +1644,16 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                           costPerArea = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
                           costPerAreaUSD = businessCurrency.toLowerCase() === 'usd'
                             ? formData.selectedBusiness.costPerArea
-                            : convertToUSDT(costPerArea); // Use converted cost
+                            : formData.selectedBusiness.costPerArea; // Business cost is already in USD
                         } else {
                           const inputCost = parseFloat(formData.locationDetails.costPerArea) || 0;
                           costPerArea = inputCost;
-                          costPerAreaUSD = convertToUSDT(inputCost);
+                          costPerAreaUSD = convertCurrentCurrencyToUSD(inputCost);
                         }
                         return (
                           <>
                             {formatCurrencyAmount(costPerArea)}
-                            <span className="text-xs ml-1">(≈ USDT {costPerAreaUSD.toFixed(2)})</span>
+                            <span className="text-xs ml-1">(≈ USD ${costPerAreaUSD.toFixed(2)})</span>
                           </>
                         );
                       })()}
@@ -1703,7 +1735,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Ownership:</span>
                     <p className="font-semibold">
-                      {((contractDetails.shares / calculateTotalShares()) * 100).toFixed(2)}%
+                      {((contractDetails.shares / formData.investment.totalShares) * 100).toFixed(2)}%
                     </p>
                   </div>
                 </div>
@@ -1819,7 +1851,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
               {/* Left side - Payment totals */}
               <div className="space-y-1">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Total Amount: {formatCurrencyAmount(formData.investment.selectedShares * convertFromUSDT(1) * 1.2)}
+                  Total Amount: {formatCurrencyAmount(formData.investment.selectedShares * convertUSDToCurrentCurrency(1) * 1.2)}
                 </div>
                 <div className="text-lg font-semibold">
                   Pay: {(formData.investment.selectedShares * calculateSharePrice() * 1.2).toFixed(4)} SOL

@@ -74,7 +74,7 @@ const WalletIcon: React.FC<{ walletName: string; size?: number }> = ({ walletNam
         style={{
           width: size,
           height: size,
-          backgroundColor: metadata?.color || '#6B7280'
+          backgroundColor: metadata?.color || '#78716c'
         }}
       >
         {getInitials(walletName)}
@@ -163,9 +163,9 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({ isOpen, onC
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'connected':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-yellow-600" />;
       case 'connecting':
-        return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+        return <Loader2 className="h-5 w-5 text-stone-600 animate-spin" />;
       default:
         return null;
     }
@@ -190,7 +190,7 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({ isOpen, onC
             <Wallet className="h-5 w-5" />
             Connect Wallet
           </DialogTitle>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-stone-600 dark:text-stone-400">
             Choose a wallet to connect to this app
           </p>
         </DialogHeader>
@@ -209,7 +209,7 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({ isOpen, onC
               <Card key={walletName} className="p-0 overflow-hidden">
                 <Button
                   variant="ghost"
-                  className="w-full h-auto p-4 justify-start hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+                  className="w-full h-auto p-4 justify-start hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50"
                   onClick={() => handleWalletSelect(walletName)}
                   disabled={isDisabled || status === 'connected'}
                 >
@@ -222,22 +222,22 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({ isOpen, onC
                       <div className="flex items-center gap-2">
                         <h3 className="font-medium">{walletName}</h3>
                         {metadata?.popular && (
-                          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs rounded-full">
+                          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs rounded-full">
                             Popular
                           </span>
                         )}
                         {!metadata?.mobile && isMobile && (
-                          <span className="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs rounded-full">
+                          <span className="px-2 py-0.5 bg-stone-100 dark:bg-stone-900/20 text-stone-700 dark:text-stone-300 text-xs rounded-full">
                             Desktop Only
                           </span>
                         )}
                         {!walletInstallInfo.isInstalled && isMobile && (
-                          <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-xs rounded-full">
+                          <span className="px-2 py-0.5 bg-stone-200 dark:bg-stone-800/20 text-stone-700 dark:text-stone-400 text-xs rounded-full">
                             Not Installed
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      <p className="text-sm text-stone-600 dark:text-stone-400 mt-1">
                         {instructions.description}
                       </p>
                     </div>
@@ -259,14 +259,14 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({ isOpen, onC
         </div>
 
         {/* Help Text */}
-        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="mt-6 p-4 bg-stone-50 dark:bg-stone-800 rounded-lg">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+            <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
             <div className="text-sm">
-              <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">
+              <p className="font-medium text-stone-900 dark:text-stone-100 mb-1">
                 Don't have a wallet?
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-stone-600 dark:text-stone-400">
                 {isMobile 
                   ? "Download a wallet app from your device's app store to get started."
                   : "Install a browser extension or download a wallet app to get started."

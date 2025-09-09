@@ -33,11 +33,22 @@ export const useSolana = () => {
 
     setLoading(true);
     try {
+      // Additional validation
+      if (!sendTransaction) {
+        throw new Error('Send transaction function not available');
+      }
+
       const toPubkey = new PublicKey(toAddress);
       // Ensure integer lamports
       const lamports = Math.round(amount * LAMPORTS_PER_SOL);
 
-      const transaction = new Transaction().add(
+      // Get recent blockhash for better transaction reliability
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+
+      const transaction = new Transaction({
+        recentBlockhash: blockhash,
+        feePayer: publicKey,
+      }).add(
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: toPubkey,
@@ -47,8 +58,16 @@ export const useSolana = () => {
 
       const signature = await sendTransaction(transaction, connection);
 
-      // Wait for confirmation
-      await connection.confirmTransaction(signature, 'confirmed');
+      // Wait for confirmation with proper error handling
+      const confirmation = await connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed');
+
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+      }
 
       return { success: true, signature };
     } catch (error) {

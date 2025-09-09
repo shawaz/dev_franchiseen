@@ -14,6 +14,7 @@ import {
   PlusSquare,
   Compass,
   Building,
+  Shield,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -446,6 +447,13 @@ function Header() {
                       className="p-2 rounded-full hidden sm:block hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
                     >
                       <Heart className="h-5 w-5 text-stone-700 dark:text-stone-300" />
+                    </Link>
+                    <Link
+                      href="/escrow"
+                      className="p-2 rounded-full hidden sm:block hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+                      aria-label="Escrow Management"
+                    >
+                      <Shield className="h-5 w-5 text-stone-700 dark:text-stone-300" />
                     </Link>
                     <button onClick={() => openTypeformCreateFranchiseModal()} className="p-2 rounded-full hidden sm:block hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
                       <PlusSquare className="h-5 w-5 text-stone-700 dark:text-stone-300" />

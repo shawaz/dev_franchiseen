@@ -118,8 +118,8 @@ export default defineSchema({
     locationAddress: v.string(),
     building: v.string(),
     carpetArea: v.number(),
-    costPerArea: v.number(),
-    totalInvestment: v.number(),
+    costPerArea: v.number(), // USD per sqft
+    totalInvestment: v.number(), // Total investment in USD
     totalShares: v.number(),
     selectedShares: v.number(),
     createdAt: v.number(),
@@ -150,7 +150,7 @@ export default defineSchema({
     userImage: v.string(),
     numberOfShares: v.number(),
     purchaseDate: v.number(),
-    costPerShare: v.number(),
+    costPerShare: v.number(), // USD per share (always $1)
   })
     .index("by_franchise", ["franchiseId"])
     .index("by_user", ["userId"])
@@ -263,8 +263,9 @@ export default defineSchema({
 
     // Payment details
     paymentSignature: v.string(), // Solana transaction signature
-    amount: v.number(), // Amount in SOL
-    amountLocal: v.number(), // Amount in local currency (AED)
+    amount: v.number(), // Amount in SOL (for blockchain payment only)
+    amountUSD: v.optional(v.number()), // Amount in USD (for business logic) - optional for backward compatibility
+    amountLocal: v.optional(v.number()), // Legacy field - Amount in local currency (deprecated)
     currency: v.string(), // "SOL", "USDC", etc.
     shares: v.number(), // Number of shares purchased
 

@@ -126,6 +126,20 @@ export class FranchiseProgram {
           return;
         }
 
+        // Check if BN is available before creating Program
+        if (!isAnchorAvailable || !BNClass) {
+          console.warn('Anchor BN not available, skipping program initialization');
+          this.program = null;
+          return;
+        }
+
+        // Additional check for provider wallet
+        if (!provider.wallet || !provider.wallet.publicKey) {
+          console.warn('Provider wallet not available, skipping program initialization');
+          this.program = null;
+          return;
+        }
+
         this.program = new Program(IDL as any, provider);
         console.log('Anchor program initialized successfully');
 

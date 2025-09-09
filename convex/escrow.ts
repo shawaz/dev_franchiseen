@@ -25,8 +25,8 @@ export const createEscrowRecord = mutation({
     userId: v.id("users"),
     businessId: v.id("businesses"),
     paymentSignature: v.string(),
-    amount: v.number(),
-    amountLocal: v.number(),
+    amount: v.number(), // SOL amount for blockchain payment
+    amountUSD: v.number(), // USD amount for business logic
     currency: v.string(),
     shares: v.number(),
     userEmail: v.optional(v.string()),
@@ -46,8 +46,8 @@ export const createEscrowRecord = mutation({
       userId: args.userId,
       businessId: args.businessId,
       paymentSignature: args.paymentSignature,
-      amount: args.amount,
-      amountLocal: args.amountLocal,
+      amount: args.amount, // SOL amount
+      amountUSD: args.amountUSD, // USD amount
       currency: args.currency,
       shares: args.shares,
       status: ESCROW_STATUS.HELD,

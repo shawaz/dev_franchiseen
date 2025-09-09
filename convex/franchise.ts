@@ -883,6 +883,24 @@ export const getInvestmentSummary = query({
   },
 });
 
+// Update franchise total investment (for fixing inflated values)
+export const updateTotalInvestment = mutation({
+  args: {
+    franchiseId: v.id("franchise"),
+    totalInvestment: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const franchise = await ctx.db.get(args.franchiseId);
+    if (!franchise) throw new Error("Franchise not found");
+
+    await ctx.db.patch(args.franchiseId, {
+      totalInvestment: args.totalInvestment,
+    });
+
+    return { success: true, newValue: args.totalInvestment };
+  },
+});
+
 // Trigger funding completion check when new investment is made
 export const processNewInvestment = mutation({
   args: {

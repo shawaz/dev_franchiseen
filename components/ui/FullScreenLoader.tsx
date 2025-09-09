@@ -1,19 +1,19 @@
-import Spinner from '../Spinner';
-import Image from 'next/image';
+import MainLoader from './MainLoader';
 
-export default function FullScreenLoader() {
+interface FullScreenLoaderProps {
+  message?: string;
+  showProgress?: boolean;
+}
+
+export default function FullScreenLoader({
+  message = "Loading...",
+  showProgress = false
+}: FullScreenLoaderProps) {
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white dark:bg-stone-900">
-      <Image
-        src="/logo.svg"
-        alt="Brand Logo"
-        width={120}
-        height={120}
-        className="mb-8"
-        style={{ objectFit: 'contain' }}
-        priority
-      />
-      <Spinner />
-    </div>
+    <MainLoader
+      message={message}
+      showProgress={showProgress}
+      fullScreen={true}
+    />
   );
-} 
+}

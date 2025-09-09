@@ -147,7 +147,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
 
   return (
     <>
-      <Card className={`bg-gradient-to-br from-purple-600 to-blue-600 text-white ${className}`}>
+      <Card className={`bg-gradient-to-br from-stone-700 to-yellow-600 text-white ${className}`}>
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -157,7 +157,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Solana Wallet</h3>
-                <p className="text-purple-100 text-sm">
+                <p className="text-yellow-100 text-sm">
                   {connected ? getWalletDisplayName() : 'Not Connected'}
                 </p>
               </div>
@@ -193,13 +193,13 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
                 <Wallet className="h-8 w-8" />
               </div>
               <h4 className="text-lg font-semibold mb-2">Connect Your Wallet</h4>
-              <p className="text-purple-100 text-sm mb-6">
+              <p className="text-yellow-100 text-sm mb-6">
                 Connect your Solana wallet to manage your investments and view your balance
               </p>
               <Button
                 onClick={() => setShowWalletModal(true)}
                 disabled={connecting}
-                className="bg-white text-purple-600 font-semibold px-6 py-3 rounded-lg hover:bg-purple-50 transition"
+                className="bg-white text-stone-700 font-semibold px-6 py-3 rounded-lg hover:bg-yellow-50 transition"
               >
                 {connecting ? (
                   <>
@@ -226,7 +226,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
                       `${balance.toFixed(4)} SOL`
                     )}
                   </div>
-                  <div className="text-purple-100 text-sm">
+                  <div className="text-yellow-100 text-sm">
                     ≈ {formatCurrencyAmount(balance)}
                   </div>
                 </div>
@@ -237,7 +237,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
                 <div className="bg-white/10 rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-purple-100 mb-1">Wallet Address</p>
+                      <p className="text-xs text-yellow-100 mb-1">Wallet Address</p>
                       <p className="font-mono text-sm">
                         {publicKey ? formatAddress(publicKey.toString()) : ''}
                       </p>
@@ -273,7 +273,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
                 <Button
                   onClick={onAddMoney || handleAirdrop}
                   disabled={airdropLoading || solanaLoading}
-                  className="bg-white/20 hover:bg-white/30 text-white border-0"
+                  className="bg-yellow-500/20 hover:bg-yellow-500/30 text-white border-0"
                 >
                   {airdropLoading ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -286,7 +286,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
                 <Button
                   onClick={() => setShowWalletModal(true)}
                   variant="outline"
-                  className="border-white/30 text-white hover:bg-white/10"
+                  className="border-yellow-300/30 text-white hover:bg-yellow-500/10"
                 >
                   <Wallet className="h-4 w-4 mr-2" />
                   Switch Wallet
@@ -295,7 +295,7 @@ const MultiWalletCard: React.FC<MultiWalletCardProps> = ({
 
               {/* Network Info */}
               <div className="mt-4 text-center">
-                <div className="flex items-center justify-center space-x-2 text-xs text-purple-100">
+                <div className="flex items-center justify-center space-x-2 text-xs text-yellow-100">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   <span>Connected to Solana Devnet</span>
                 </div>
