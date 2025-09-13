@@ -22,14 +22,10 @@ function FooterMobile() {
 
   // Function to handle successful email verification
   const handleEmailVerificationSuccess = () => {
-    // Close email modal and open onboarding
+    // Close email modal and skip onboarding - user is ready to use the platform
     setIsEmailVerificationOpen(false);
-    openUserOnboardingModal({
-      onComplete: (userType) => {
-        console.log(`User completed onboarding as: ${userType}`);
-        // Navigation to /home is handled in the modal itself
-      }
-    });
+    // No need to open onboarding modal - KYC is skipped
+    console.log('User authenticated successfully - KYC verification skipped');
   };
   const pathname = usePathname();
 

@@ -44,7 +44,7 @@ export default async function FranchiseManager({ params }: FranchiseManagerPageP
   }
 
   // Get business by slug
-  const business = await fetchQuery(api.businesses.getBySlug, { slug: brandSlug });
+  const business = await fetchQuery(api.brands.getBySlug, { slug: brandSlug });
   if (!business) return notFound();
 
   // Check if the current user is the owner of this business
@@ -59,7 +59,7 @@ export default async function FranchiseManager({ params }: FranchiseManagerPageP
 
   // Get all franchises for this business
   const allFranchises = await fetchQuery(api.franchise.list, {});
-  const franchises = (allFranchises as Doc<"franchise">[]).filter(f => f.businessId === business._id);
+  const franchises = (allFranchises as Doc<"franchise">[]).filter(f => f.brandId === business._id);
 
   // Find the specific franchise for this slug
   const franchise = franchises.find(f => f.slug === franchiseSlug);

@@ -30,15 +30,15 @@ export default async function ProfilePage() {
   }
 
   // Get user's franchise shares
-  const shares = await fetchQuery(api.shares.getFranchisesByUser, { 
-    userId: convexUser._id 
+  const shares = await fetchQuery(api.shares.getSharesByShareholder, {
+    shareholderId: convexUser._id
   }).catch(() => []);
 
   // Get franchise details for each share
   const franchiseDetails = shares ? await Promise.all(
     shares.map(async (share) => {
       const franchise = await fetchQuery(api.franchise.getById, { franchiseId: share.franchiseId }).catch(() => null);
-      const business = franchise ? await fetchQuery(api.businesses.getById, { businessId: franchise.businessId }).catch(() => null) : null;
+      const business = franchise ? await fetchQuery(api.brands.getById, { brandId: franchise.brandId }).catch(() => null) : null;
       return {
         share,
         franchise,

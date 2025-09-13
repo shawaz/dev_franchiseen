@@ -27,7 +27,7 @@ interface Franchise {
   businessSlug?: string;
   brandSlug?: string;
   franchiseSlug?: string;
-  businessId?: Id<"businesses">;
+  brandId?: Id<"brands">;
   // funding specific properties
   availableFrom?: string;
   returnRate?: string | number;
@@ -54,7 +54,7 @@ export default function Home() {
 
   // Fetch all franchises from the database
   const allFranchises = useQuery(api.franchise.list, {});
-  const allBusinesses = useQuery(api.businesses.listAll, {});
+  const allBusinesses = useQuery(api.brands.listAll, {});
 
   // Update active tab based on URL parameter
   useEffect(() => {
@@ -158,14 +158,14 @@ export default function Home() {
       if (!dbFranchises || !businesses) return [];
       
       return dbFranchises.map((franchise) => {
-        const business = businesses.find(b => b._id === franchise.businessId);
+        const business = businesses.find(b => b._id === franchise.brandId);
         const statusTypeMap: { [key: string]: "fund" | "launch" | "live" } = {
           "Funding": "fund",
-          "Launching": "launch", 
+          "Launching": "launch",
           "Active": "live",
           "Closed": "live"
         };
-        
+
         // Extract area and country from locationAddress
         const formatLocation = (address: string) => {
           if (!address) return "Location";
@@ -175,7 +175,7 @@ export default function Home() {
           }
           return address;
         };
-        
+
         return {
           _id: franchise._id,
           title: franchise.building || "Franchise Location",
@@ -188,7 +188,7 @@ export default function Home() {
           businessSlug: business?.slug || "business",
           brandSlug: business?.slug || "business",
           franchiseSlug: franchise.slug || franchise._id,
-          businessId: franchise.businessId, // Add businessId for brand data
+          businessId: franchise.brandId, // Use brandId instead of businessId
           // Funding specific
           returnRate: 8.5,
           investorsCount: Math.floor(Math.random() * 50) + 10,
@@ -235,8 +235,8 @@ export default function Home() {
             id: business?._id || franchise._id,
             name: business?.name || franchise.title,
             logo_url: business?.logoUrl || "/logo/logo-2.svg",
-            industry: business?.industry?.name || "Business",
-            category: business?.category?.name || "Franchise",
+            industry: "Business",
+            category: "Franchise",
             costPerArea: franchise.price,
             min_area: franchise.size
           };
@@ -299,7 +299,7 @@ export default function Home() {
                 activeOutlets={franchise.activeOutlets}
                 brandSlug={franchise.brandSlug}
                 franchiseSlug={franchise.franchiseSlug}
-                businessId={franchise.businessId}
+                businessId={franchise.brandId}
               />
             ))
           ) : (

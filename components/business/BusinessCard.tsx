@@ -20,7 +20,7 @@ const BusinessCard: React.FC<{
 }> = ({ business }) => {
   const statusCounts = useQuery(
     api.franchise.getStatusCountsByBusiness,
-    business.id ? { businessId: business.id as Id<"businesses"> } : "skip",
+    business.id ? { businessId: business.id as Id<"brands"> } : "skip",
   );
   const statusCountsError =
     statusCounts === undefined && business.id ? "..." : null;

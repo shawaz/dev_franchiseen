@@ -19,6 +19,9 @@ import { Id } from '@/convex/_generated/dataModel';
 
 import { useSolana } from '@/hooks/useSolana';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
+import WalletWithLocalCurrency from '../wallet/WalletWithLocalCurrency';
+import { useConnection } from '@solana/wallet-adapter-react';
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 
 interface TypeformCreateFranchiseModalProps {
@@ -28,10 +31,11 @@ interface TypeformCreateFranchiseModalProps {
 }
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   slug?: string;
   logoUrl?: string;
+  walletAddress?: string;
   industry?: { name: string } | null;
   category?: { name: string } | null;
   costPerArea?: number;
@@ -85,10 +89,16 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
   const [marker, setMarker] = useState<any>(null);
   const [conflictingLocation, setConflictingLocation] = useState<boolean>(false);
 
+  // Brand wallet balance state
+  const [brandWalletBalance, setBrandWalletBalance] = useState<number>(0);
+  const [brandWalletLoading, setBrandWalletLoading] = useState<boolean>(false);
+
   const { connected, publicKey, connecting, wallet } = useWallet();
   const { setVisible } = useWalletModal();
   const { createFranchise, investInFranchise, connected: programConnected } = useFranchiseProgram();
   const { selectedCurrency, exchangeRates } = useGlobalCurrency();
+  const { connection } = useConnection();
+  const { sendSOL, getSOLBalance } = useSolana();
 
   // Helper function to convert USD to current user's currency (no SOL involved)
   const convertUSDToCurrentCurrency = (amountUSD: number) => {
@@ -149,20 +159,38 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
     return costInLocal;
   };
 
+  // Fetch brand wallet balance
+  const fetchBrandWalletBalance = async (walletAddress: string) => {
+    if (!walletAddress) return;
+
+    setBrandWalletLoading(true);
+    try {
+      const publicKey = new PublicKey(walletAddress);
+      const lamports = await connection.getBalance(publicKey);
+      const solBalance = lamports / LAMPORTS_PER_SOL;
+      setBrandWalletBalance(solBalance);
+    } catch (error) {
+      console.error('Error fetching brand wallet balance:', error);
+      setBrandWalletBalance(0);
+    } finally {
+      setBrandWalletLoading(false);
+    }
+  };
+
   // Convex mutations
   const createFranchiseInDB = useMutation(api.franchise.create);
-  const createEscrowRecord = useMutation(api.escrow.createEscrowRecord);
-  const updateUserContact = useMutation(api.users.updateContactInfo);
+  const createTransaction = useMutation(api.transactions.createTransaction);
+  const createApproval = useMutation(api.approvals.createApproval);
 
   // Get all businesses for selection
-  const businesses = useQuery(api.businesses.listAll, {}) || [];
+  const businesses = useQuery(api.brands.listAll, {}) || [];
 
   // Get current user
   const currentUser = useQuery(api.users.getCurrentUser, {});
 
   // Get specific business if brandSlug provided
   const specificBusiness = useQuery(
-    api.businesses.getBySlug,
+    api.brands.getBySlug,
     brandSlug ? { slug: brandSlug } : "skip"
   );
 
@@ -217,6 +245,13 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
       }));
     }
   }, [specificBusiness, brandSlug]);
+
+  // Fetch brand wallet balance when business is selected
+  useEffect(() => {
+    if (formData.selectedBusiness?.walletAddress) {
+      fetchBrandWalletBalance(formData.selectedBusiness.walletAddress);
+    }
+  }, [formData.selectedBusiness?.walletAddress]);
 
   // Initialize Google Maps when step 2 is reached
   useEffect(() => {
@@ -542,10 +577,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
       if (field === 'userNumber') updateData.phone = value;
       if (field === 'userEmail') updateData.email = value;
 
-      // Debounce the update to avoid too many calls
-      setTimeout(() => {
-        updateUserContact(updateData).catch(console.error);
-      }, 1000);
+      // Note: User contact update functionality removed
     }
   };
 
@@ -560,7 +592,6 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
   };
 
   // In-step Solana payment using SlideButton
-  const { getSOLBalance, sendSOL } = useSolana();
   const [solBalance, setSolBalance] = useState<number>(0);
 
   useEffect(() => {
@@ -625,14 +656,18 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
 
     setLoading(true);
     try {
-      // Step 1: Send payment to escrow wallet (company wallet for now, but held in escrow)
-      const escrowWalletAddress = process.env.NEXT_PUBLIC_COMPANY_WALLET_ADDRESS || '11111111111111111111111111111112';
-      const pay = await sendSOL(escrowWalletAddress, totalAmountSOL);
+      // Step 1: Send payment directly to brand wallet
+      const brandWalletAddress = formData.selectedBusiness!.walletAddress;
+      if (!brandWalletAddress) {
+        throw new Error('Brand wallet address not found. Please contact support.');
+      }
+
+      const pay = await sendSOL(brandWalletAddress, totalAmountSOL);
       if (!pay.success || !pay.signature) {
         throw new Error(pay.error || 'Payment failed');
       }
 
-      toast.success('Payment successful! Funds held in escrow. Creating franchise...');
+      toast.success('Payment successful! Funds sent to brand wallet. Creating franchise...');
 
           // Step 2: Create franchise on blockchain
           const businessSlug = formData.selectedBusiness!.slug || formData.selectedBusiness!.name.toLowerCase().replace(/\s+/g, '-');
@@ -655,7 +690,10 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
               );
 
               if (!createTx) {
-                throw new Error('Failed to create franchise on blockchain');
+                console.warn('Failed to create franchise on blockchain, continuing with database-only creation');
+                toast.warning('Blockchain integration unavailable, creating franchise in database only');
+              } else {
+                toast.success('Franchise created on blockchain! Creating database records...');
               }
 
               toast.success('Franchise created! Creating investment contract...');
@@ -682,51 +720,108 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
             const totalInvestmentUSD = convertCurrentCurrencyToUSD(totalInvestmentLocal);
             const costPerAreaUSD = formData.selectedBusiness?.costPerArea || convertCurrentCurrencyToUSD(parseFloat(formData.locationDetails.costPerArea) || 0);
 
+
+
+            // Calculate corrected investment with fixed $1.00 per share
+            const sharePrice = 1.00;
+            const baseInvestment = selectedShares * sharePrice; // selectedShares × $1.00
+            const transactionFee = baseInvestment * 0.02; // 2% transaction fee
+            const correctedTotalInvestmentUSD = baseInvestment + transactionFee;
+
             const franchiseData = await createFranchiseInDB({
-              businessId: formData.selectedBusiness!._id,
+              brandId: formData.selectedBusiness!._id,
+              owner_id: currentUser!._id,
               locationAddress: formData.location?.address || '',
               building: formData.locationDetails.buildingName,
               carpetArea: parseFloat(formData.locationDetails.sqft),
               costPerArea: costPerAreaUSD, // Store USD value
-              totalInvestment: totalInvestmentUSD, // Store USD value
+              totalInvestment: correctedTotalInvestmentUSD, // Store corrected USD value ($1/share + fee)
               totalShares: calculateTotalShares(),
               selectedShares: selectedShares,
+              status: "Pending Approval", // Default status
+              stage: "approval", // Set initial stage as approval
               slug: franchiseId,
+              images: [], // Outlet images to be added later
             });
 
             savedFranchiseId = franchiseData;
             console.log('Franchise saved to database:', franchiseData);
+
+            // Create approval record with USD values
+            console.log('Creating approval with data:', {
+              franchiseId: franchiseData,
+              brandId: formData.selectedBusiness!._id,
+              totalInvestmentUSD,
+              costPerAreaUSD,
+              carpetArea: parseFloat(formData.locationDetails.sqft),
+              totalShares: calculateTotalShares(),
+              selectedShares: selectedShares,
+              sharePrice,
+              locationAddress: formData.location?.address || '',
+              building: formData.locationDetails.buildingName,
+            });
+
+            const approvalData = await createApproval({
+              franchiseId: franchiseData,
+              brandId: formData.selectedBusiness!._id,
+              totalInvestmentUSD: correctedTotalInvestmentUSD, // Use corrected total with $1/share + fee
+              costPerAreaUSD,
+              carpetArea: parseFloat(formData.locationDetails.sqft),
+              totalShares: calculateTotalShares(),
+              selectedShares: selectedShares,
+              sharePrice, // Fixed $1.00 per share
+              locationAddress: formData.location?.address || '',
+              building: formData.locationDetails.buildingName,
+              metadata: {
+                originalCurrency: selectedCurrency,
+                originalTotalInvestment: totalInvestmentLocal,
+                exchangeRate: exchangeRates[selectedCurrency] || 1,
+                submissionTimestamp: Date.now(),
+                baseInvestment, // selectedShares × $1.00
+                transactionFee, // 2% fee
+                correctedCalculation: true
+              },
+            });
+
+            console.log('Approval record created successfully:', approvalData);
           } catch (error) {
             console.error('Failed to save franchise to database:', error);
             toast.error('Failed to save franchise data, but blockchain contracts are created');
           }
 
-          // Step 5: Create escrow record for payment protection
+          // Step 5: Create transaction record for payment tracking
           if (savedFranchiseId && currentUser) {
             try {
               if (!currentUser?._id || !currentUser?.email || !pay.signature) {
                 throw new Error('User not authenticated or payment failed');
               }
 
-              await createEscrowRecord({
-                franchiseId: savedFranchiseId.franchiseId,
-                userId: currentUser._id,
-                businessId: formData.selectedBusiness!._id,
-                paymentSignature: pay.signature,
-                amount: totalAmountSOL, // SOL amount for blockchain
-                amountUSD: selectedShares * FIXED_USDT_PER_SHARE * 1.2, // USD amount for business logic
+              const transactionResult = await createTransaction({
+                type: "investment",
+                amount: totalAmountSOL,
                 currency: "SOL",
-                shares: selectedShares,
-                userEmail: currentUser.email,
-                userWallet: publicKey?.toString() || '',
-                contractSignature: investTx || undefined,
-                contractAddress: `${businessSlug}-${franchiseId}`,
+                fromUserId: currentUser._id,
+                toUserId: undefined, // Brand owner will be determined by brandId
+                brandId: formData.selectedBusiness!._id,
+                franchiseId: savedFranchiseId,
+                fromWalletAddress: publicKey?.toString() || '',
+                toWalletAddress: brandWalletAddress,
+                description: `Franchise investment for ${formData.selectedBusiness!.name} - ${formData.locationDetails.buildingName}`,
+                metadata: {
+                  shares: selectedShares,
+                  costPerShare: FIXED_USDT_PER_SHARE * 1.2,
+                  totalInvestmentUSD: selectedShares * FIXED_USDT_PER_SHARE * 1.2,
+                  contractSignature: investTx || undefined,
+                  contractAddress: `${businessSlug}-${franchiseId}`,
+                  blockchainTxHash: pay.signature,
+                },
               });
 
-              toast.success('Payment secured in escrow! Franchise pending approval.');
-            } catch (escrowError) {
-              console.error('Failed to create escrow record:', escrowError);
-              toast.error('Payment successful but escrow record failed. Please contact support.');
+              console.log('Transaction created:', transactionResult);
+              toast.success('Payment completed! Transaction recorded. Franchise pending approval.');
+            } catch (transactionError) {
+              console.error('Failed to create transaction record:', transactionError);
+              toast.error('Payment successful but transaction record failed. Please contact support.');
             }
           }
 
@@ -857,9 +952,8 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
 
   // Filter businesses based on search query
   const filteredBusinesses = businesses.filter(business =>
-    business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    business.category?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    business.industry?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    business.name.toLowerCase().includes(searchQuery.toLowerCase())
+    // Note: Category and industry filtering removed as they're not directly available
   );
 
   const canProceed = () => {
@@ -1017,16 +1111,13 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                           )}
                         </div>
                         <p className="text-base text-muted-foreground mb-1">
-                          {business.category?.name}
+                          Brand
                         </p>
-                        
-                      </div>
-                      <div className="flex items-center gap-6 text-sm text-muted-foreground justify-end">
+                         <div className="flex items-center gap-6 text-sm text-muted-foreground">
                           {business.costPerArea && (
                             <div className="flex items-center gap-2">
                               <div className="text-right">
                                 {(() => {
-                                  const businessCost = business.costPerArea || 0;
                                   const displayCost = convertBusinessCostToCurrentCurrency(business);
                                   
                                   return (
@@ -1037,9 +1128,9 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                                           ({selectedCurrency.toUpperCase()})
                                         </span>
                                       </div>
-                                      <div className="text-xs text-muted-foreground">
+                                      {/* <div className="text-xs text-muted-foreground">
                                         ≈ {businessCost.toFixed(2)} USD
-                                      </div>
+                                      </div> */}
                                     </div>
                                   );
                                 })()}
@@ -1048,11 +1139,11 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                           )}
                           {business.min_area && (
                             <div className="flex items-center gap-2">
-                              <Building className="h-4 w-4" />
                               <span>Min: {business.min_area} sq ft</span>
                             </div>
                           )}
                         </div>
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -1077,7 +1168,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
               exit={{ opacity: 0, x: -20 }}
               className="h-full flex flex-col"
             >
-              <div className="p-6 border-b border-gray-200 dark:border-stone-700">
+              <div className="p-4 border-b border-gray-200 dark:border-stone-700">
 
                 {/* Search Bar */}
                 <div className="flex gap-2">
@@ -1262,14 +1353,11 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">Cost per Sq Ft</label>
-                    <div className="h-12 px-3 py-2 bg-gray-50 dark:bg-stone-800 border border-gray-200 dark:border-stone-700 rounded-md flex items-center text-lg">
+                    <div className="h-12 px-3 py-2 bg-gray-50 dark:bg-stone-800 border border-gray-200 dark:border-stone-700 flex items-center text-lg">
                       {formData.selectedBusiness?.costPerArea ? (() => {
                         const convertedCost = convertBusinessCostToCurrentCurrency(formData.selectedBusiness);
-                        const businessCurrency = formData.selectedBusiness.currency || 'USD';
-                        const usdEquivalent = businessCurrency.toLowerCase() === 'usd'
-                          ? formData.selectedBusiness.costPerArea
-                          : formData.selectedBusiness.costPerArea; // Business cost is already in USD
-                        return `${formatCurrencyAmount(convertedCost)} (≈ USD ${usdEquivalent.toFixed(2)})`;
+                        return `${formatCurrencyAmount(convertedCost)}`;
+                        // return `${formatCurrencyAmount(convertedCost)} (≈ USD ${usdEquivalent.toFixed(2)})`;
                       })() : 'Not set by brand owner'}
                     </div>
                     {/* <p className="text-xs text-muted-foreground mt-1">
@@ -1287,7 +1375,7 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                     </div>
                     <div className="text-2xl font-bold text-yellow-800 dark:text-yellow-200">
                       Total Investment: {formatCurrencyAmount(calculateTotalInvestment())}
-                      <span className="text-sm ml-2">(≈ USD ${convertCurrentCurrencyToUSD(calculateTotalInvestment()).toFixed(2)})</span>
+                      {/* <span className="text-sm ml-2">(≈ USD ${convertCurrentCurrencyToUSD(calculateTotalInvestment()).toFixed(2)})</span> */}
                     </div>
                     <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
                       {formData.locationDetails.sqft} sq ft × {(() => {
@@ -1401,108 +1489,10 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
               exit={{ opacity: 0, x: -20 }}
               className="p-6 space-y-6"
             >
-              {/* Wallet Connection Status */}
-              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-4 rounded-lg mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : connecting ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></div>
-                  <div>
-                    <h4 className="font-medium text-blue-800 dark:text-blue-200">
-                      Wallet Status: {connected ? 'Connected' : connecting ? 'Connecting...' : 'Not Connected'}
-                    </h4>
-                    {connected && publicKey && (
-                      <p className="text-sm text-blue-600 dark:text-blue-400">
-                        {publicKey.toString().slice(0, 8)}...{publicKey.toString().slice(-8)}
-                      </p>
-                    )}
-                    {wallet && (
-                      <p className="text-xs text-blue-500 dark:text-blue-500">
-                        Using: {wallet.adapter.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
+              {/* Wallet Status */}
+              <WalletWithLocalCurrency />
 
 
-
-               {/* Wallet Balance Display */}
-              {connected && (
-                <div className="bg-stone-50 dark:bg-stone-800 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-stone-600 dark:text-stone-400">Wallet Balance</span>
-                    <span className="text-sm font-semibold">{solBalance.toFixed(4)} SOL</span>
-                  </div>
-                  {solBalance < (formData.investment.selectedShares * calculateSharePrice() * 1.2) && (
-                    <div className="mt-2">
-                      <Button variant="outline" onClick={() => window.open('https://phantom.app/', '_blank')}>
-                        Add Balance
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!connected && (
-                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Wallet className="h-5 w-5 text-yellow-600" />
-                    <div>
-                      <h4 className="font-medium text-yellow-800 dark:text-yellow-200">Wallet Required</h4>
-                      <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                        Connect your Solana wallet to purchase shares
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Button
-                      onClick={async () => {
-                        console.log('Connect wallet button clicked');
-
-                        // Check if we're on mobile
-                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-                        if (isMobile) {
-                          // Mobile: Direct Phantom connection
-                          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                          const isAndroid = /Android/.test(navigator.userAgent);
-
-                          if (isIOS) {
-                            // iOS: Use Phantom app scheme
-                            const phantomUrl = `phantom://v1/connect?dapp_encryption_public_key=&cluster=devnet&app_url=${encodeURIComponent(window.location.origin)}`;
-                            window.location.href = phantomUrl;
-                          } else if (isAndroid) {
-                            // Android: Use intent for Phantom
-                            const intentUrl = `intent://v1/connect?dapp_encryption_public_key=&cluster=devnet&app_url=${encodeURIComponent(window.location.origin)}#Intent;scheme=phantom;package=app.phantom;S.browser_fallback_url=https://phantom.app/download;end`;
-                            window.location.href = intentUrl;
-                          }
-                        } else {
-                          // Desktop: Use wallet modal
-                          setVisible(true);
-                        }
-                      }}
-                      disabled={connecting}
-                      className="w-full bg-yellow-600 hover:bg-yellow-700 text-white disabled:opacity-50"
-                    >
-                      {connecting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <Wallet className="h-4 w-4 mr-2" />
-                          Connect Phantom Wallet
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center">
-                      {/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-                        ? 'Will open Phantom app on your device'
-                        : 'Make sure you have Phantom wallet installed'}
-                    </p>
-                  </div>
-                </div>
-              )}
               
                {/* Investment Summary - Inline */}
               <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg p-6">
@@ -1672,8 +1662,8 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                 <h4 className="font-medium text-stone-800 dark:text-stone-200 mb-2">Important Information</h4>
                 <div className="text-sm text-stone-600 dark:text-stone-400 space-y-2">
                   <p>• Your franchise proposal will be submitted for brand owner approval</p>
-                  <p>• Investment funds will be held in escrow until approval</p>
-                  <p>• If rejected, funds will be automatically refunded</p>
+                  <p>• Investment funds will be sent directly to the brand wallet</p>
+                  <p>• Transaction will be recorded with 2% platform commission</p>
                   <p>• Upon approval, franchise tokens will be created and distributed</p>
                   <p>• Monthly profit sharing begins after franchise launch</p>
                 </div>
@@ -1855,6 +1845,10 @@ const TypeformCreateFranchiseModal: React.FC<TypeformCreateFranchiseModalProps> 
                 </div>
                 <div className="text-lg font-semibold">
                   Pay: {(formData.investment.selectedShares * calculateSharePrice() * 1.2).toFixed(4)} SOL
+                </div>
+                {/* Brand wallet balance */}
+                <div className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+                  Brand Wallet: {brandWalletLoading ? '...' : `${brandWalletBalance.toFixed(4)} SOL`}
                 </div>
               </div>
 

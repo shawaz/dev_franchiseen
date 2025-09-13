@@ -14,19 +14,18 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as admin from "../admin.js";
-import type * as businesses from "../businesses.js";
+import type * as approvals from "../approvals.js";
+import type * as brands from "../brands.js";
 import type * as categories from "../categories.js";
-import type * as deals from "../deals.js";
-import type * as escrow from "../escrow.js";
-import type * as financialTransactions from "../financialTransactions.js";
 import type * as franchise from "../franchise.js";
-import type * as frcTokens from "../frcTokens.js";
 import type * as industries from "../industries.js";
+import type * as investments from "../investments.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as platformTeam from "../platformTeam.js";
 import type * as setup from "../setup.js";
 import type * as shares from "../shares.js";
 import type * as teams from "../teams.js";
+import type * as transactions from "../transactions.js";
 import type * as uploadLogo from "../uploadLogo.js";
 import type * as uploadcare from "../uploadcare.js";
 import type * as users from "../users.js";
@@ -41,19 +40,18 @@ import type * as users from "../users.js";
  */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
-  businesses: typeof businesses;
+  approvals: typeof approvals;
+  brands: typeof brands;
   categories: typeof categories;
-  deals: typeof deals;
-  escrow: typeof escrow;
-  financialTransactions: typeof financialTransactions;
   franchise: typeof franchise;
-  frcTokens: typeof frcTokens;
   industries: typeof industries;
+  investments: typeof investments;
   myFunctions: typeof myFunctions;
   platformTeam: typeof platformTeam;
   setup: typeof setup;
   shares: typeof shares;
   teams: typeof teams;
+  transactions: typeof transactions;
   uploadLogo: typeof uploadLogo;
   uploadcare: typeof uploadcare;
   users: typeof users;

@@ -15,10 +15,8 @@ export const getAllDocuments = query({
     // Validate table name to prevent injection
     const validTables = [
       "businesses",
-      "franchise", 
+      "franchise",
       "investments",
-      "escrow",
-      "frcTokens",
       "shareTransfers",
       "teamInvitations",
       "teamMembers",
@@ -54,10 +52,8 @@ export const deleteDocument = mutation({
     // Validate table name to prevent injection
     const validTables = [
       "businesses",
-      "franchise", 
+      "franchise",
       "investments",
-      "escrow",
-      "frcTokens",
       "shareTransfers",
       "teamInvitations",
       "teamMembers",
@@ -89,10 +85,8 @@ export const getDatabaseStats = query({
     
     const tables = [
       "businesses",
-      "franchise", 
+      "franchise",
       "investments",
-      "escrow",
-      "frcTokens",
       "shareTransfers",
       "teamInvitations",
       "teamMembers",

@@ -26,7 +26,7 @@ const AccountSelectionModal: React.FC<AccountSelectionModalProps> = ({ isOpen, o
 
   // Get user businesses from Convex
   const convexUserBusinesses = useQuery(
-    api.businesses.listByOwner,
+    api.brands.listByOwner,
     convexUser?._id ? { ownerId: convexUser._id as Id<"users"> } : "skip",
   ) || [];
 

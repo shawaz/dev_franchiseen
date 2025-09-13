@@ -27,7 +27,7 @@ import Image from 'next/image';
 import { ProfileSkeleton } from '@/components/skeletons/DashboardSkeleton';
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   logoUrl?: string;
   industry?: { name: string } | null;
@@ -38,17 +38,19 @@ interface Share {
   _id: Id<"shares">;
   _creationTime: number;
   franchiseId: Id<"franchise">;
-  userId: Id<"users">;
-  userName: string;
-  userImage: string;
-  numberOfShares: number;
-  purchaseDate: number;
-  costPerShare: number;
+  shareholderId: Id<"users">;
+  sharesAllocated: number;
+  sharePrice: number;
+  totalValue: number;
+  allocatedAt: number;
+  status: string;
+  shareType: string;
+  isVested: boolean;
 }
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  brandId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;
@@ -88,9 +90,9 @@ const generateMockEarnings = (shares: Share[]) => {
     id: share._id,
     franchiseId: share.franchiseId,
     month: new Date(Date.now() - index * 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 7),
-    earnings: Math.floor(share.numberOfShares * share.costPerShare * 0.08 * (0.8 + Math.random() * 0.4)),
-    dividendPerShare: Math.floor(share.costPerShare * 0.08 * (0.8 + Math.random() * 0.4)),
-    totalShares: share.numberOfShares,
+    earnings: Math.floor(share.sharesAllocated * share.sharePrice * 0.08 * (0.8 + Math.random() * 0.4)),
+    dividendPerShare: Math.floor(share.sharePrice * 0.08 * (0.8 + Math.random() * 0.4)),
+    totalShares: share.sharesAllocated,
     status: Math.random() > 0.1 ? 'paid' : 'pending'
   }));
 };
@@ -101,9 +103,9 @@ const generateMockContracts = (shares: Share[]) => {
     franchiseId: share.franchiseId,
     contractAddress: `0x${Math.random().toString(16).substring(2, 42)}`,
     tokenId: Math.floor(Math.random() * 10000),
-    shareCount: share.numberOfShares,
-    purchasePrice: share.costPerShare,
-    purchaseDate: share.purchaseDate,
+    shareCount: share.sharesAllocated,
+    purchasePrice: share.sharePrice,
+    purchaseDate: share.allocatedAt,
     status: 'active',
     blockchainNetwork: 'Solana',
     transactionHash: `${Math.random().toString(16).substring(2, 66)}`
@@ -117,9 +119,9 @@ const generateMockInvoices = (shares: Share[]) => {
       id: `inv-${share._id}-purchase`,
       franchiseId: share.franchiseId,
       type: 'purchase',
-      amount: share.numberOfShares * share.costPerShare,
-      date: share.purchaseDate,
-      description: `Purchase of ${share.numberOfShares} shares`,
+      amount: share.sharesAllocated * share.sharePrice,
+      date: share.allocatedAt,
+      description: `Purchase of ${share.sharesAllocated} shares`,
       status: 'paid',
       invoiceNumber: `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
     });
@@ -130,7 +132,7 @@ const generateMockInvoices = (shares: Share[]) => {
         id: `inv-${share._id}-dividend-${i}`,
         franchiseId: share.franchiseId,
         type: 'dividend',
-        amount: Math.floor(share.numberOfShares * share.costPerShare * 0.08 * (0.8 + Math.random() * 0.4)),
+        amount: Math.floor(share.sharesAllocated * share.sharePrice * 0.08 * (0.8 + Math.random() * 0.4)),
         date,
         description: `Monthly dividend payment`,
         status: i === 0 ? 'pending' : 'paid',
@@ -153,8 +155,8 @@ export default function ProfileDashboard({ user, franchiseDetails }: ProfileDash
   const mockInvoices = generateMockInvoices(allShares);
 
   // Calculate totals
-  const totalInvestment = allShares.reduce((sum, share) => sum + (share.numberOfShares * share.costPerShare), 0);
-  const totalShares = allShares.reduce((sum, share) => sum + share.numberOfShares, 0);
+  const totalInvestment = allShares.reduce((sum, share) => sum + (share.sharesAllocated * share.sharePrice), 0);
+  const totalShares = allShares.reduce((sum, share) => sum + share.sharesAllocated, 0);
   const totalEarnings = mockEarnings.reduce((sum, earning) => sum + earning.earnings, 0);
   const monthlyEarnings = mockEarnings.filter(e => e.month === new Date().toISOString().slice(0, 7)).reduce((sum, earning) => sum + earning.earnings, 0);
 
@@ -314,9 +316,9 @@ export default function ProfileDashboard({ user, franchiseDetails }: ProfileDash
                         <p className="text-xs text-gray-500">{franchise?.locationAddress}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold">{share.numberOfShares} shares</p>
+                        <p className="font-semibold">{share.sharesAllocated} shares</p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {formatAmount(share.numberOfShares * share.costPerShare)}
+                          {formatAmount(share.sharesAllocated * share.sharePrice)}
                         </p>
                       </div>
                     </div>

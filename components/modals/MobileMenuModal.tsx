@@ -32,7 +32,7 @@ const MobileMenuModal: React.FC<MobileMenuModalProps> = ({ isOpen, onClose, onSe
 
   // Get user businesses
   const userBusinesses = useQuery(
-    api.businesses.listByOwner,
+    api.brands.listByOwner,
     convexUser?._id ? { ownerId: convexUser._id as Id<"users"> } : "skip",
   ) || [];
 

@@ -193,7 +193,7 @@ export default function InvestmentTrackingDashboard({
     );
   }
 
-  const { franchise, investment, escrow, timeline, investors } = franchiseTracking;
+  // franchiseTracking contains the investment data directly
 
   return (
     <div className="space-y-6">
@@ -203,8 +203,8 @@ export default function InvestmentTrackingDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Invested</p>
-              <p className="text-xl font-bold text-green-600">{formatAmount(investment.totalInvested)}</p>
-              <p className="text-xs text-gray-500">{investment.fundingPercentage.toFixed(1)}% of target</p>
+              <p className="text-xl font-bold text-green-600">{formatAmount(franchiseTracking.totalInvestment)}</p>
+              <p className="text-xs text-gray-500">{franchiseTracking.investmentGrowth.toFixed(1)}% growth</p>
             </div>
             <DollarSign className="h-6 w-6 text-green-500" />
           </div>
@@ -214,8 +214,8 @@ export default function InvestmentTrackingDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Investors</p>
-              <p className="text-xl font-bold">{investment.uniqueInvestors}</p>
-              <p className="text-xs text-gray-500">{investment.totalShares} shares sold</p>
+              <p className="text-xl font-bold">{franchiseTracking.uniqueInvestors}</p>
+              <p className="text-xs text-gray-500">{franchiseTracking.totalShares} shares sold</p>
             </div>
             <Users className="h-6 w-6 text-purple-500" />
           </div>
@@ -224,9 +224,9 @@ export default function InvestmentTrackingDashboard({
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Days Active</p>
-              <p className="text-xl font-bold">{timeline.daysActive}</p>
-              <p className="text-xs text-gray-500">{timeline.daysRemaining} remaining</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Selected Shares</p>
+              <p className="text-xl font-bold">{franchiseTracking.selectedShares}</p>
+              <p className="text-xs text-gray-500">of {franchiseTracking.totalShares} total</p>
             </div>
             <Clock className="h-6 w-6 text-blue-500" />
           </div>
@@ -235,16 +235,16 @@ export default function InvestmentTrackingDashboard({
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Daily Average</p>
-              <p className="text-xl font-bold">{formatAmount(timeline.dailyAverageInvestment)}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Average Investment</p>
+              <p className="text-xl font-bold">{formatAmount(franchiseTracking.averageInvestment)}</p>
               <div className="flex items-center gap-1">
-                {timeline.isOnTrack ? (
+                {franchiseTracking.investmentGrowth > 0 ? (
                   <TrendingUp className="w-3 h-3 text-green-500" />
                 ) : (
                   <TrendingDown className="w-3 h-3 text-red-500" />
                 )}
-                <p className={`text-xs ${timeline.isOnTrack ? 'text-green-600' : 'text-red-600'}`}>
-                  {timeline.isOnTrack ? 'On track' : 'Behind target'}
+                <p className={`text-xs ${franchiseTracking.investmentGrowth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {franchiseTracking.investmentGrowth > 0 ? 'Growing' : 'Declining'}
                 </p>
               </div>
             </div>
@@ -253,59 +253,37 @@ export default function InvestmentTrackingDashboard({
         </Card>
       </div>
 
-      {/* Progress Bar */}
+      {/* Investment Summary */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Funding Progress</h3>
-          <Badge variant={investment.isFullyFunded ? "default" : "secondary"}>
-            {investment.isFullyFunded ? "Fully Funded" : "In Progress"}
+          <h3 className="text-lg font-semibold">Investment Summary</h3>
+          <Badge variant="secondary">
+            Active Investment
           </Badge>
         </div>
-        
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Progress: {investment.fundingPercentage.toFixed(1)}%</span>
-            <span>{formatAmount(investment.remainingAmount)} remaining</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-4">
-            <div 
-              className={`h-4 rounded-full ${
-                investment.fundingPercentage >= 100 ? 'bg-green-500' : 
-                investment.fundingPercentage >= 75 ? 'bg-yellow-500' : 'bg-blue-500'
-              }`}
-              style={{ width: `${Math.min(100, investment.fundingPercentage)}%` }}
-            ></div>
-          </div>
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>{formatAmount(investment.totalInvested)} raised</span>
-            <span>{formatAmount(investment.fundingTarget)} target</span>
-          </div>
-        </div>
-      </Card>
 
-      {/* Top Investors */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Top Investors</h3>
-        <div className="space-y-3">
-          {investors.topInvestors.slice(0, 5).map((investor: any, index: number) => (
-            <div key={investor.userId} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-semibold text-blue-600">#{index + 1}</span>
-                </div>
-                <div>
-                  <p className="font-semibold">{investor.userName}</p>
-                  <p className="text-sm text-gray-600">{investor.totalShares} shares</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold">{formatAmount(investor.totalInvested)}</p>
-                <p className="text-sm text-gray-600">
-                  {((investor.totalInvested / investment.totalInvested) * 100).toFixed(1)}%
-                </p>
-              </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Investment</p>
+              <p className="text-lg font-semibold">{formatAmount(franchiseTracking.totalInvestment)}</p>
             </div>
-          ))}
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Recent Investment</p>
+              <p className="text-lg font-semibold">{formatAmount(franchiseTracking.recentInvestment)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Growth Rate</p>
+              <p className="text-lg font-semibold text-green-600">{franchiseTracking.investmentGrowth}%</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Unique Investors</p>
+              <p className="text-lg font-semibold">{franchiseTracking.uniqueInvestors}</p>
+            </div>
+          </div>
         </div>
       </Card>
     </div>

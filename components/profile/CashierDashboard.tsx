@@ -72,7 +72,7 @@ interface Table {
 interface CashierDashboardProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   convexUser: any;
-  business: Doc<"businesses">;
+  business: Doc<"brands">;
   franchise: Doc<"franchise">;
   brandSlug: string;
 }
@@ -252,7 +252,7 @@ export default function CashierDashboard({ business, franchise }: CashierDashboa
   return (
      <div className="space-y-6 py-6 ">
       {/* Header */}
-      <BrandWalletWithLocalCurrency onAddMoney={handleAddSOL} business={business} />
+      <BrandWalletWithLocalCurrency onAddMoney={handleAddSOL} business={business} brandSlug={business.slug || ''} />
 
 
       

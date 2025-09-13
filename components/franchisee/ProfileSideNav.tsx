@@ -55,15 +55,13 @@ function ProfileSideNav() {
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-2xl font-bold">
-                  {userProfile.first_name} {userProfile.family_name}
+                  {userProfile.email.split('@')[0]}
                 </h1>
                 <div className="flex items-center mt-1 dark:text-gray-400 text-gray-600">
                   {userProfile.email || "Email not set"}
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
-                  {userProfile.investment_budget
-                    ? `${formatSol(Number(userProfile.investment_budget))} / Month`
-                    : "Budget not set"}
+                  Budget not set
                 </p>
               </div>
             </div>

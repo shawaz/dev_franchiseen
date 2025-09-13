@@ -25,35 +25,30 @@ import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from 'sonner';
-import { useGillFranchiseToken } from '@/hooks/useGillFranchiseToken';
+// FRC token functionality removed
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   slug?: string;
   logoUrl?: string;
 }
 
 interface PendingFranchise {
-  _id: Id<"franchise">;
-  businessId: Id<"businesses">;
-  owner_id: Id<"users">;
+  _id: Id<"approvals">;
+  franchiseId: Id<"franchise">;
+  brandId: Id<"brands">;
+  submittedBy: Id<"users">;
   locationAddress: string;
   building: string;
   carpetArea: number;
-  costPerArea: number;
-  totalInvestment: number;
+  costPerAreaUSD: number;
+  totalInvestmentUSD: number;
   totalShares: number;
   selectedShares: number;
-  createdAt: number;
+  sharePrice: number;
+  submittedAt: number;
   status: string;
-  slug?: string;
-  proposalDetails?: {
-    businessPlan: string;
-    experience: string;
-    financialCapacity: number;
-    expectedROI: number;
-  };
 }
 
 interface FranchiseApprovalTabProps {
@@ -69,66 +64,63 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
   const [mapRef, setMapRef] = useState<HTMLDivElement | null>(null);
   const [map, setMap] = useState<any>(null);
   
-  // Get Gill franchise token hook
-  const { createFranchiseToken, connected } = useGillFranchiseToken();
+  // FRC token functionality removed
   
-  // Get pending franchise proposals
-  const pendingFranchises = useQuery(api.franchise.getPendingByBusiness, {
-    businessId: business._id
+  // Get pending approval records
+  const pendingApprovals = useQuery(api.approvals.getPendingApprovalsByBrand, {
+    brandId: business._id
   }) || [];
 
+  // Debug logging
+  console.log('FranchiseApprovalTab - Business ID:', business._id);
+  console.log('FranchiseApprovalTab - Pending approvals:', pendingApprovals);
+
+  // Debug query to get all approvals
+  const allApprovals = useQuery(api.approvals.getAllApprovals, {}) || [];
+  console.log('FranchiseApprovalTab - All approvals in database:', allApprovals);
+
   // Mutations for approval/rejection
-  const approveFranchise = useMutation(api.franchise.approveFranchise);
-  const rejectFranchise = useMutation(api.franchise.rejectFranchise);
+  const approveApproval = useMutation(api.approvals.approveApproval);
+  const rejectApproval = useMutation(api.approvals.rejectApproval);
 
-  // Query escrow records for all franchises
-  const allEscrowRecords = useQuery(api.escrow.getAllEscrowRecords, {}) || [];
+  // Query investment records for all franchises
+  const allInvestmentRecords = useQuery(api.investments.getInvestmentsByBrand, {
+    brandId: business._id
+  }) || [];
 
-  // Helper function to get escrow info for a franchise
-  const getEscrowInfo = (franchiseId: string) => {
-    const escrowRecords = allEscrowRecords.filter(record => record.franchiseId === franchiseId);
-    const totalEscrowAmount = escrowRecords.reduce((sum, record) => sum + record.amount, 0);
-    const heldRecords = escrowRecords.filter(record => record.status === 'held');
+  // Helper function to get investment info for a franchise
+  const getInvestmentInfo = (franchiseId: string) => {
+    const investmentRecords = allInvestmentRecords.filter(record => record.franchiseId === franchiseId);
+    const totalInvestmentAmount = investmentRecords.reduce((sum, record) => sum + record.investmentAmountUSD, 0);
+    const completedRecords = investmentRecords.filter(record => record.status === 'completed');
 
     return {
-      totalAmount: totalEscrowAmount,
-      heldAmount: heldRecords.reduce((sum, record) => sum + record.amount, 0),
-      recordCount: escrowRecords.length,
-      heldCount: heldRecords.length,
-      hasEscrow: escrowRecords.length > 0,
+      totalAmount: totalInvestmentAmount,
+      completedAmount: completedRecords.reduce((sum, record) => sum + record.investmentAmountUSD, 0),
+      recordCount: investmentRecords.length,
+      completedCount: completedRecords.length,
+      hasInvestments: investmentRecords.length > 0,
     };
   };
 
-  const handleApprove = async (franchise: PendingFranchise) => {
-    if (!connected) {
-      toast.error('Please connect your wallet to approve franchises');
-      return;
-    }
+  const handleApprove = async (approval: any) => {
+    // FRC token wallet connection check removed
 
-    const escrowInfo = getEscrowInfo(franchise._id);
+    const investmentInfo = getInvestmentInfo(approval.franchiseId);
 
-    setLoading(franchise._id);
+    setLoading(approval._id);
     try {
-      // 1. Create franchise token on Solana
-      const tokenResult = await createFranchiseToken(
-        franchise.slug || franchise._id,
-        business.name || 'Unknown Business',
-        franchise.locationAddress || 'Unknown Location',
-        franchise.totalShares
-      );
-
-      // 2. Update franchise status in database (this will also release escrow funds)
-      await approveFranchise({
-        franchiseId: franchise._id,
-        tokenMint: tokenResult.tokenMint.toString(),
-        transactionSignature: tokenResult.signature
+      // Update approval status in database (FRC token creation removed)
+      await approveApproval({
+        approvalId: approval._id,
+        adminNotes: `Approved franchise request`
       });
 
-      const escrowMessage = escrowInfo.hasEscrow
-        ? ` Escrow funds (${formatAmount(escrowInfo.heldAmount)}) have been released.`
+      const investmentMessage = investmentInfo.hasInvestments
+        ? ` Investment funds (${formatAmount(investmentInfo.completedAmount)}) have been received.`
         : '';
 
-      toast.success(`Franchise approved and token created successfully!${escrowMessage}`);
+      toast.success(`Franchise approved and token created successfully!${investmentMessage}`);
     } catch (error) {
       console.error('Error approving franchise:', error);
       toast.error('Failed to approve franchise');
@@ -137,21 +129,22 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
     }
   };
 
-  const handleReject = async (franchise: PendingFranchise, reason: string) => {
-    const escrowInfo = getEscrowInfo(franchise._id);
+  const handleReject = async (approval: any, reason: string) => {
+    const investmentInfo = getInvestmentInfo(approval.franchiseId);
 
-    setLoading(franchise._id);
+    setLoading(approval._id);
     try {
-      await rejectFranchise({
-        franchiseId: franchise._id,
-        rejectionReason: reason
+      await rejectApproval({
+        approvalId: approval._id,
+        rejectionReason: reason,
+        adminNotes: `Rejected: ${reason}`
       });
 
-      const escrowMessage = escrowInfo.hasEscrow
-        ? ` Escrow funds (${formatAmount(escrowInfo.heldAmount)}) will be refunded to investors.`
+      const investmentMessage = investmentInfo.hasInvestments
+        ? ` Investment funds (${formatAmount(investmentInfo.completedAmount)}) will be refunded to investors.`
         : '';
 
-      toast.success(`Franchise proposal rejected.${escrowMessage}`);
+      toast.success(`Franchise proposal rejected.${investmentMessage}`);
     } catch (error) {
       console.error('Error rejecting franchise:', error);
       toast.error('Failed to reject franchise');
@@ -290,7 +283,7 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
           </div>
 
           <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-            {pendingFranchises.filter(f => f.status === "Pending Approval").length} Pending
+            {pendingApprovals.length} Pending
           </Badge>
         </div>
       </div>
@@ -370,7 +363,7 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
       {viewMode === 'requests' && (
         <>
           {/* Pending Proposals */}
-          {pendingFranchises.length === 0 ? (
+          {pendingApprovals.length === 0 ? (
             <Card className="p-8 text-center">
               <CheckCircle className="w-12 h-12 mx-auto mb-4 text-green-500" />
               <h3 className="text-lg font-semibold mb-2">No Pending Proposals</h3>
@@ -380,20 +373,20 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
             </Card>
           ) : (
         <div className="grid gap-6">
-          {pendingFranchises.map((franchise) => (
-            <Card key={franchise._id} className="p-6">
+          {pendingApprovals.map((approval) => (
+            <Card key={approval._id} className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <Building className="w-8 h-8 text-blue-600 bg-blue-100 p-1.5 rounded" />
                   <div>
-                    <h3 className="text-lg font-semibold">{franchise.building}</h3>
+                    <h3 className="text-lg font-semibold">{approval.building}</h3>
                     <div className="flex items-center gap-2 text-sm text-stone-600 dark:text-stone-400">
                       <MapPin className="w-4 h-4" />
-                      {franchise.locationAddress}
+                      {approval.locationAddress}
                     </div>
                   </div>
                 </div>
-                {getStatusBadge(franchise.status)}
+                {getStatusBadge(approval.status)}
               </div>
 
               {/* Proposal Details */}
@@ -403,15 +396,15 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span className="text-sm">Total Investment:</span>
-                      <span className="font-semibold">{formatAmount(franchise.totalInvestment)}</span>
+                      <span className="font-semibold">{formatAmount(approval.totalInvestmentUSD)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Area:</span>
-                      <span className="font-semibold">{franchise.carpetArea} sq ft</span>
+                      <span className="font-semibold">{approval.carpetArea} sq ft</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Cost per sq ft:</span>
-                      <span className="font-semibold">{formatAmount(franchise.costPerArea)}</span>
+                      <span className="font-semibold">{formatAmount(approval.costPerAreaUSD)}</span>
                     </div>
                   </div>
                 </div>
@@ -421,46 +414,46 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
                   <div className="space-y-1">
                     <div className="flex justify-between">
                       <span className="text-sm">Total Shares:</span>
-                      <span className="font-semibold">{franchise.totalShares.toLocaleString()}</span>
+                      <span className="font-semibold">{approval.totalShares.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Initial Shares:</span>
-                      <span className="font-semibold">{franchise.selectedShares.toLocaleString()}</span>
+                      <span className="font-semibold">{approval.selectedShares.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Share Price:</span>
-                      <span className="font-semibold">{formatAmount(franchise.totalInvestment / franchise.totalShares)}</span>
+                      <span className="font-semibold">{formatAmount(approval.sharePrice)}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-sm text-stone-600 dark:text-stone-400">Escrow & Timeline</div>
+                  <div className="text-sm text-stone-600 dark:text-stone-400">Investment & Timeline</div>
                   <div className="space-y-1">
                     {(() => {
-                      const escrowInfo = getEscrowInfo(franchise._id);
+                      const investmentInfo = getInvestmentInfo(approval.franchiseId);
                       return (
                         <>
-                          {escrowInfo.hasEscrow ? (
+                          {investmentInfo.hasInvestments ? (
                             <>
                               <div className="flex justify-between">
-                                <span className="text-sm">Escrow Amount:</span>
-                                <span className="font-semibold text-green-600">{formatAmount(escrowInfo.heldAmount)}</span>
+                                <span className="text-sm">Investment Amount:</span>
+                                <span className="font-semibold text-green-600">{formatAmount(investmentInfo.completedAmount)}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-sm">Escrow Records:</span>
-                                <span className="font-semibold">{escrowInfo.heldCount} held</span>
+                                <span className="text-sm">Investments:</span>
+                                <span className="font-semibold">{investmentInfo.completedCount} completed</span>
                               </div>
                             </>
                           ) : (
                             <div className="flex items-center gap-2 text-sm text-amber-600">
                               <AlertTriangle className="w-4 h-4" />
-                              <span>No escrow funds</span>
+                              <span>No investment funds</span>
                             </div>
                           )}
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="w-4 h-4" />
-                            <span>Submitted: {new Date(franchise.createdAt).toLocaleDateString()}</span>
+                            <span>Submitted: {new Date(approval.submittedAt).toLocaleDateString()}</span>
                           </div>
                         </>
                       );
@@ -470,14 +463,14 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
               </div>
 
               {/* Action Buttons */}
-              {franchise.status === "Pending Approval" && (
+              {approval.status === "pending" && (
                 <div className="flex items-center gap-3 pt-4 border-t border-stone-200 dark:border-stone-700">
                   <Button
-                    onClick={() => handleApprove(franchise)}
-                    disabled={loading === franchise._id || !connected}
+                    onClick={() => handleApprove(approval)}
+                    disabled={loading === approval._id}
                     className="bg-green-600 hover:bg-green-700 text-white"
                   >
-                    {loading === franchise._id ? (
+                    {loading === approval._id ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Creating Token...
@@ -489,10 +482,10 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
                       </>
                     )}
                   </Button>
-                  
+
                   <Button
-                    onClick={() => handleReject(franchise, "Proposal does not meet requirements")}
-                    disabled={loading === franchise._id}
+                    onClick={() => handleReject(approval, "Proposal does not meet requirements")}
+                    disabled={loading === approval._id}
                     variant="outline"
                     className="border-red-200 text-red-600 hover:bg-red-50"
                   >
@@ -501,7 +494,7 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
                   </Button>
 
                   <Button
-                    onClick={() => setSelectedFranchise(franchise)}
+                    onClick={() => setSelectedFranchise(approval)}
                     variant="outline"
                   >
                     <Eye className="w-4 h-4 mr-2" />
@@ -510,14 +503,7 @@ export default function FranchiseApprovalTab({ business }: FranchiseApprovalTabP
                 </div>
               )}
 
-              {!connected && franchise.status === "Pending Approval" && (
-                <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mt-4">
-                  <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                  <span className="text-sm text-yellow-800">
-                    Connect your wallet to approve franchises and create tokens
-                  </span>
-                </div>
-              )}
+              {/* FRC token wallet connection warning removed */}
             </Card>
           ))}
         </div>

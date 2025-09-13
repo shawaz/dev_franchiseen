@@ -39,7 +39,7 @@ export default async function AccountPage({ params }: AccountPageProps) {
   }
 
   // Get business by slug
-  const business = await fetchQuery(api.businesses.getBySlug, { slug: brandSlug });
+  const business = await fetchQuery(api.brands.getBySlug, { slug: brandSlug });
   if (!business) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">

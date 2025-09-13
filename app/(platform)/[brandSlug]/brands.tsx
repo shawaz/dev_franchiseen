@@ -7,8 +7,8 @@ import type { Business } from "@/components/business/BusinessGrid";
 import FooterMobile from "@/components/FooterMobile";
 
 export default async function Home() {
-  // Fetch all businesses from Convex
-  const businesses = await fetchQuery(api.businesses.listAll, {});
+  // Fetch all brands from Convex
+  const businesses = await fetchQuery(api.brands.list, {});
   // Map Convex data to BusinessGrid's expected type
 
   type Industry = {

@@ -20,12 +20,12 @@ import {
 } from 'lucide-react';
 import { Id } from '@/convex/_generated/dataModel';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
-import { useGillFranchiseToken } from '@/hooks/useGillFranchiseToken';
+// FRC token functionality removed
 import { toast } from 'sonner';
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  brandId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;
@@ -57,13 +57,7 @@ interface FranchiseBalanceManagerProps {
 
 export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceManagerProps) {
   const { formatAmount } = useGlobalCurrency();
-  const { 
-    recordIncome, 
-    recordExpense, 
-    getFranchiseTokenData,
-    connected, 
-    loading 
-  } = useGillFranchiseToken();
+  // FRC token functionality removed
 
   const [activeTab, setActiveTab] = useState<'overview' | 'income' | 'expenses'>('overview');
   const [tokenData, setTokenData] = useState<any>(null);
@@ -79,24 +73,7 @@ export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceM
   const [expenseCategory, setExpenseCategory] = useState('');
   const [expenseDescription, setExpenseDescription] = useState('');
 
-  // Load token data and transactions
-  useEffect(() => {
-    if (franchise.slug && connected) {
-      loadTokenData();
-      loadTransactions();
-    }
-  }, [franchise.slug, connected]);
-
-  const loadTokenData = async () => {
-    if (!franchise.slug) return;
-    
-    try {
-      const data = await getFranchiseTokenData(franchise.slug);
-      setTokenData(data);
-    } catch (error) {
-      console.error('Error loading token data:', error);
-    }
-  };
+  // FRC token functionality removed - no token data loading
 
   const loadTransactions = async () => {
     // Mock transactions for now
@@ -135,10 +112,7 @@ export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceM
   };
 
   const handleRecordIncome = async () => {
-    if (!connected) {
-      toast.error('Please connect your wallet');
-      return;
-    }
+    // FRC token wallet connection check removed
 
     if (!incomeAmount || !incomeDescription) {
       toast.error('Please fill in all fields');
@@ -146,26 +120,16 @@ export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceM
     }
 
     try {
-      const amount = parseFloat(incomeAmount);
-      await recordIncome(franchise.slug || franchise._id, amount, incomeSource, incomeDescription);
-      
-      // Reset form
-      setIncomeAmount('');
-      setIncomeDescription('');
-      
-      // Reload data
-      await loadTokenData();
-      await loadTransactions();
+      // FRC token income recording functionality removed
+      toast.success('Income recording functionality has been removed');
     } catch (error) {
       console.error('Error recording income:', error);
+      toast.error('Failed to record income');
     }
   };
 
   const handleRecordExpense = async () => {
-    if (!connected) {
-      toast.error('Please connect your wallet');
-      return;
-    }
+    // FRC token wallet connection check removed
 
     if (!expenseAmount || !expenseCategory || !expenseDescription) {
       toast.error('Please fill in all fields');
@@ -173,19 +137,11 @@ export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceM
     }
 
     try {
-      const amount = parseFloat(expenseAmount);
-      await recordExpense(franchise.slug || franchise._id, amount, expenseCategory, expenseDescription);
-      
-      // Reset form
-      setExpenseAmount('');
-      setExpenseCategory('');
-      setExpenseDescription('');
-      
-      // Reload data
-      await loadTokenData();
-      await loadTransactions();
+      // FRC token expense recording functionality removed
+      toast.success('Expense recording functionality has been removed');
     } catch (error) {
       console.error('Error recording expense:', error);
+      toast.error('Failed to record expense');
     }
   };
 
@@ -368,20 +324,10 @@ export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceM
             
             <Button
               onClick={handleRecordIncome}
-              disabled={loading || !connected}
               className="w-full bg-green-600 hover:bg-green-700 text-white"
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Recording...
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Record Income
-                </>
-              )}
+              <Plus className="w-4 h-4 mr-2" />
+              Record Income (Disabled)
             </Button>
           </div>
         )}
@@ -422,20 +368,10 @@ export default function FranchiseBalanceManager({ franchise }: FranchiseBalanceM
             
             <Button
               onClick={handleRecordExpense}
-              disabled={loading || !connected}
               className="w-full bg-red-600 hover:bg-red-700 text-white"
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Recording...
-                </>
-              ) : (
-                <>
-                  <Minus className="w-4 h-4 mr-2" />
-                  Record Expense
-                </>
-              )}
+              <Minus className="w-4 h-4 mr-2" />
+              Record Expense (Disabled)
             </Button>
           </div>
         )}

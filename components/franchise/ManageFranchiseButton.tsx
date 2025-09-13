@@ -9,7 +9,7 @@ import { useUser } from '@clerk/nextjs'
 import { Id } from '@/convex/_generated/dataModel'
 
 interface ManageFranchiseButtonProps {
-  businessId: Id<"businesses">;
+  businessId: Id<"brands">;
   franchiseId: Id<"franchise">;
   franchise: {
     owner_id: Id<"users">;

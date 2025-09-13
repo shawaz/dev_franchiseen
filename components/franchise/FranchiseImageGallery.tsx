@@ -9,7 +9,9 @@ interface FranchiseImage {
 }
 
 interface FranchiseImageGalleryProps {
-  images?: FranchiseImage[];
+  images?: string[] | FranchiseImage[];
+  brandName?: string;
+  franchiseName?: string;
 }
 
 const defaultImages: FranchiseImage[] = [
@@ -55,15 +57,41 @@ const defaultImages: FranchiseImage[] = [
   }
 ];
 
-export default function FranchiseImageGallery({ images = defaultImages }: FranchiseImageGalleryProps) {
+export default function FranchiseImageGallery({
+  images = defaultImages,
+  brandName = "Brand",
+  franchiseName = "Franchise"
+}: FranchiseImageGalleryProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // Convert images to consistent format and filter out invalid URLs
+  const processedImages: FranchiseImage[] = images
+    .filter((image) => {
+      // Filter out blob URLs and empty strings
+      if (typeof image === 'string') {
+        return image && !image.startsWith('blob:') && image.trim() !== '';
+      }
+      return image && image.src && !image.src.startsWith('blob:') && image.src.trim() !== '';
+    })
+    .map((image, index) => {
+      if (typeof image === 'string') {
+        return {
+          src: image,
+          alt: `${brandName} - ${franchiseName} Image ${index + 1}`
+        };
+      }
+      return image;
+    });
+
+  // Use processed images or default if empty
+  const displayImages = processedImages.length > 0 ? processedImages : defaultImages;
+
   const goToNext = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    setCurrentImageIndex((prev) => (prev + 1) % displayImages.length);
   };
 
   const goToPrevious = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    setCurrentImageIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
   };
 
   // Touch handling for mobile swipe
@@ -103,8 +131,8 @@ export default function FranchiseImageGallery({ images = defaultImages }: Franch
           {/* Main large image */}
           <div className="col-span-2 row-span-2 relative">
             <Image
-              src={images[0]?.src}
-              alt={images[0]?.alt}
+              src={displayImages[0]?.src || defaultImages[0].src}
+              alt={displayImages[0]?.alt || defaultImages[0].alt}
               fill
               className="object-cover hover:brightness-110 transition-all duration-300 cursor-pointer rounded-l-xl"
             />
@@ -113,16 +141,16 @@ export default function FranchiseImageGallery({ images = defaultImages }: Franch
           {/* Top right images */}
           <div className="relative">
             <Image
-              src={images[1]?.src}
-              alt={images[1]?.alt}
+              src={displayImages[1]?.src || defaultImages[1].src}
+              alt={displayImages[1]?.alt || defaultImages[1].alt}
               fill
               className="object-cover hover:brightness-110 transition-all duration-300 cursor-pointer"
             />
           </div>
           <div className="relative">
             <Image
-              src={images[2]?.src}
-              alt={images[2]?.alt}
+              src={displayImages[2]?.src || defaultImages[2].src}
+              alt={displayImages[2]?.alt || defaultImages[2].alt}
               fill
               className="object-cover hover:brightness-110 transition-all duration-300 cursor-pointer rounded-tr-xl"
             />
@@ -131,16 +159,16 @@ export default function FranchiseImageGallery({ images = defaultImages }: Franch
           {/* Bottom right images */}
           <div className="relative">
             <Image
-              src={images[3]?.src}
-              alt={images[3]?.alt}
+              src={displayImages[3]?.src || defaultImages[3].src}
+              alt={displayImages[3]?.alt || defaultImages[3].alt}
               fill
               className="object-cover hover:brightness-110 transition-all duration-300 cursor-pointer"
             />
           </div>
           <div className="relative">
             <Image
-              src={images[4]?.src}
-              alt={images[4]?.alt}
+              src={displayImages[4]?.src || defaultImages[4].src}
+              alt={displayImages[4]?.alt || defaultImages[4].alt}
               fill
               className="object-cover hover:brightness-110 transition-all duration-300 cursor-pointer rounded-br-xl"
             />
@@ -169,7 +197,7 @@ export default function FranchiseImageGallery({ images = defaultImages }: Franch
             className="flex transition-transform duration-300 ease-in-out h-full"
             style={{ transform: `translateX(-${currentImageIndex * 100}%)` }}
           >
-            {images.map((image, index) => (
+            {displayImages.map((image, index) => (
               <div key={index} className="w-full h-full flex-shrink-0 relative">
                 <Image
                   src={image.src}
@@ -183,7 +211,7 @@ export default function FranchiseImageGallery({ images = defaultImages }: Franch
 
           {/* Navigation Dots */}
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-            {images.map((_, index) => (
+            {displayImages.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentImageIndex(index)}

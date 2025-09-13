@@ -15,7 +15,7 @@ export type TeamRole = typeof TEAM_ROLES[keyof typeof TEAM_ROLES];
 // Create a team invitation
 export const createInvitation = mutation({
   args: {
-    businessId: v.id("businesses"),
+    brandId: v.id("brands"),
     franchiseId: v.optional(v.id("franchise")),
     invitedEmail: v.string(),
     role: v.string(),
@@ -27,22 +27,22 @@ export const createInvitation = mutation({
       throw new Error("Not authenticated");
     }
 
-    // Verify the inviter has permission to invite for this business
-    const business = await ctx.db.get(args.businessId);
-    if (!business) {
-      throw new Error("Business not found");
+    // Verify the inviter has permission to invite for this brand
+    const brand = await ctx.db.get(args.brandId);
+    if (!brand) {
+      throw new Error("Brand not found");
     }
 
-    // Check if inviter is the business owner
-    if (business.owner_id !== args.invitedBy) {
-      throw new Error("Only business owners can invite team members");
+    // Check if inviter is the brand owner
+    if (brand.owner_id !== args.invitedBy) {
+      throw new Error("Only brand owners can invite team members");
     }
 
     // Check if invitation already exists
     const existingInvitation = await ctx.db
       .query("teamInvitations")
-      .withIndex("by_business_email", (q) =>
-        q.eq("businessId", args.businessId).eq("invitedEmail", args.invitedEmail)
+      .withIndex("by_brand_email", (q) =>
+        q.eq("brandId", args.brandId).eq("invitedEmail", args.invitedEmail)
       )
       .filter((q) => q.eq(q.field("status"), "pending"))
       .first();
@@ -53,7 +53,7 @@ export const createInvitation = mutation({
 
     // Create the invitation
     const invitationId = await ctx.db.insert("teamInvitations", {
-      businessId: args.businessId,
+      brandId: args.brandId,
       franchiseId: args.franchiseId,
       invitedEmail: args.invitedEmail,
       role: args.role as TeamRole,
@@ -67,9 +67,9 @@ export const createInvitation = mutation({
   },
 });
 
-// Get team invitations for a business
-export const getBusinessInvitations = query({
-  args: { businessId: v.id("businesses") },
+// Get team invitations for a brand
+export const getBrandInvitations = query({
+  args: { brandId: v.id("brands") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -78,7 +78,7 @@ export const getBusinessInvitations = query({
 
     const invitations = await ctx.db
       .query("teamInvitations")
-      .withIndex("by_business", (q) => q.eq("businessId", args.businessId))
+      .withIndex("by_brand", (q) => q.eq("brandId", args.brandId))
       .collect();
 
     // Get inviter details
@@ -87,7 +87,36 @@ export const getBusinessInvitations = query({
         const inviter = await ctx.db.get(invitation.invitedBy);
         return {
           ...invitation,
-          inviterName: inviter?.first_name || "Unknown",
+          inviterName: inviter?.email || "Unknown",
+        };
+      })
+    );
+
+    return invitationsWithDetails;
+  },
+});
+
+// Legacy function for backward compatibility
+export const getBusinessInvitations = query({
+  args: { businessId: v.id("brands") }, // businessId now maps to brandId
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const invitations = await ctx.db
+      .query("teamInvitations")
+      .withIndex("by_brand", (q) => q.eq("brandId", args.businessId))
+      .collect();
+
+    // Get inviter details
+    const invitationsWithDetails = await Promise.all(
+      invitations.map(async (invitation) => {
+        const inviter = await ctx.db.get(invitation.invitedBy);
+        return {
+          ...invitation,
+          inviterName: inviter?.email || "Unknown",
         };
       })
     );
@@ -133,9 +162,8 @@ export const acceptInvitation = mutation({
       // Create user if doesn't exist
       const userId = await ctx.db.insert("users", {
         email: identity.email!,
-        first_name: identity.name || "Unknown User",
         avatar: identity.pictureUrl,
-        created_at: Date.now(),
+        roles: identity.email!.endsWith('@franchiseen.com') ? ['admin'] : ['user'],
       });
       user = await ctx.db.get(userId);
     }
@@ -146,7 +174,7 @@ export const acceptInvitation = mutation({
 
     // Create team member record
     await ctx.db.insert("teamMembers", {
-      businessId: invitation.businessId,
+      brandId: invitation.brandId,
       franchiseId: invitation.franchiseId,
       userId: user._id,
       role: invitation.role,
@@ -166,7 +194,7 @@ export const acceptInvitation = mutation({
 
 // Get team members for a business
 export const getBusinessTeamMembers = query({
-  args: { businessId: v.id("businesses") },
+  args: { businessId: v.id("brands") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -175,7 +203,7 @@ export const getBusinessTeamMembers = query({
 
     const teamMembers = await ctx.db
       .query("teamMembers")
-      .withIndex("by_business", (q) => q.eq("businessId", args.businessId))
+      .withIndex("by_brand", (q) => q.eq("brandId", args.businessId))
       .collect();
 
     // Get user details for each team member
@@ -189,7 +217,7 @@ export const getBusinessTeamMembers = query({
         return {
           ...member,
           user: {
-            name: user?.first_name || "Unknown",
+            name: user?.email || "Unknown",
             email: user?.email || "Unknown",
             avatar: user?.avatar,
           },
@@ -220,9 +248,9 @@ export const removeTeamMember = mutation({
     }
 
     // Verify the current user has permission to remove this team member
-    const business = await ctx.db.get(teamMember.businessId);
-    if (!business) {
-      throw new Error("Business not found");
+    const brand = await ctx.db.get(teamMember.brandId);
+    if (!brand) {
+      throw new Error("Brand not found");
     }
 
     const currentUser = await ctx.db
@@ -230,8 +258,8 @@ export const removeTeamMember = mutation({
       .withIndex("by_email", (q) => q.eq("email", identity.email!))
       .first();
 
-    if (!currentUser || business.owner_id !== currentUser._id) {
-      throw new Error("Only business owners can remove team members");
+    if (!currentUser || brand.owner_id !== currentUser._id) {
+      throw new Error("Only brand owners can remove team members");
     }
 
     await ctx.db.delete(args.teamMemberId);
@@ -254,9 +282,9 @@ export const cancelInvitation = mutation({
     }
 
     // Verify the current user has permission to cancel this invitation
-    const business = await ctx.db.get(invitation.businessId);
-    if (!business) {
-      throw new Error("Business not found");
+    const brand = await ctx.db.get(invitation.brandId);
+    if (!brand) {
+      throw new Error("Brand not found");
     }
 
     const currentUser = await ctx.db
@@ -264,8 +292,8 @@ export const cancelInvitation = mutation({
       .withIndex("by_email", (q) => q.eq("email", identity.email!))
       .first();
 
-    if (!currentUser || business.owner_id !== currentUser._id) {
-      throw new Error("Only business owners can cancel invitations");
+    if (!currentUser || brand.owner_id !== currentUser._id) {
+      throw new Error("Only brand owners can cancel invitations");
     }
 
     await ctx.db.patch(args.invitationId, {

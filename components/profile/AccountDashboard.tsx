@@ -37,7 +37,7 @@ interface Franchise {
 }
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   logoUrl?: string;
   industry?: { name: string } | null;

@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 import { useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -107,11 +108,11 @@ const TypeformRegisterBrandModal: React.FC<TypeformRegisterBrandModalProps> = ({
   // Get industries and categories
   const industries = useQuery(api.industries.listIndustries, {}) || [];
   const categories = useQuery(
-    api.myFunctions.listCategories,
-    formData.industry ? { industry_id: formData.industry } : "skip"
+    api.categories.getByIndustry,
+    formData.industry ? { industryId: formData.industry as Id<"industries"> } : "skip"
   ) || [];
 
-  const createBusiness = useMutation(api.businesses.create);
+  const createBusiness = useMutation(api.brands.create);
 
   // Wallet generation functions
   const generateSeedPhrase = (): string[] => {

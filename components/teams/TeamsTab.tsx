@@ -11,7 +11,7 @@ import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 
 interface TeamsTabProps {
-  businessId: Id<"businesses">;
+  businessId: Id<"brands">;
 }
 
 const ROLE_CONFIG = {
@@ -68,7 +68,7 @@ const TeamsTab: React.FC<TeamsTabProps> = ({ businessId }) => {
     setIsInviting(true);
     try {
       await createInvitation({
-        businessId,
+        brandId: businessId,
         invitedEmail: inviteEmail,
         role: selectedRole,
         invitedBy: currentUser._id,

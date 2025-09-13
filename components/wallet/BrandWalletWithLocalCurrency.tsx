@@ -2,14 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { CreditCard, Zap, Wallet, RefreshCw, ArrowUpDown, Banknote, Coins, CircleArrowOutDownLeftIcon, PlusCircle } from 'lucide-react';
-import { useSolana } from '@/hooks/useSolana';
+import { useConnection } from '@solana/wallet-adapter-react';
+import { CreditCard, Wallet, ArrowUpDown, PlusCircle, Copy } from 'lucide-react';
 import { useModal } from '@/contexts/ModalContext';
 import { formatSol } from '@/lib/coingecko';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
-import { Money } from 'iconsax-reactjs';
+
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { toast } from 'sonner';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 
 interface Business {
   _id: string;
@@ -17,23 +20,62 @@ interface Business {
   logoUrl?: string;
   industry?: { name: string } | null;
   category?: { name: string } | null;
+  walletAddress?: string;
+  slug?: string; // Make slug optional to match Convex schema
 }
 
 interface BrandWalletWithLocalCurrencyProps {
   onAddMoney?: () => void;
   className?: string;
   business: Business;
+  brandSlug?: string;
 }
 
 const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> = ({
   onAddMoney,
   className,
   business,
+  brandSlug,
 }) => {
-  const { publicKey, connected } = useWallet();
-  const { setVisible } = useWalletModal();
-  const { getSOLBalance, requestAirdrop, loading: solanaLoading } = useSolana();
+  const { connection } = useConnection();
   const { openSendSOLModal } = useModal();
+
+  // Get business data with wallet info
+  const slug = brandSlug || business.slug;
+  const businessData = useQuery(api.brands.getBySlug, slug ? { slug } : "skip");
+
+  // Also try to get by ID as fallback
+  const businessDataById = useQuery(api.brands.getById,
+    business._id ? { brandId: business._id as Id<"brands"> } : "skip"
+  );
+
+  // Use the most recent data available
+  const currentBusinessData = businessData || businessDataById;
+
+  // Debug logging
+  console.log('BrandWallet Debug:', {
+    slug,
+    businessData: businessData ? {
+      name: businessData.name,
+      walletAddress: businessData.walletAddress,
+      hasWallet: !!businessData.walletAddress
+    } : 'loading...',
+    businessDataById: businessDataById ? {
+      name: businessDataById.name,
+      walletAddress: businessDataById.walletAddress,
+      hasWallet: !!businessDataById.walletAddress
+    } : 'loading...',
+    currentBusinessData: currentBusinessData ? {
+      name: currentBusinessData.name,
+      walletAddress: currentBusinessData.walletAddress,
+      hasWallet: !!currentBusinessData.walletAddress
+    } : 'loading...',
+    business: {
+      name: business.name,
+      slug: business.slug,
+      _id: business._id
+    }
+  });
 
   // State
   const [balance, setBalance] = useState<number>(0);
@@ -41,51 +83,52 @@ const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Use global currency context
-  const { selectedCurrency, convertFromSOL, formatAmount, refreshRates, loading: currencyLoading } = useGlobalCurrency();
+  const { selectedCurrency, convertFromSOL, formatAmount, refreshRates } = useGlobalCurrency();
 
-  // Fetch balance when wallet connects
+  // Fetch balance when business data loads
   useEffect(() => {
-    if (connected && publicKey) {
+    if (currentBusinessData?.walletAddress) {
       fetchBalance();
     }
-  }, [connected, publicKey]);
+  }, [currentBusinessData?.walletAddress]);
 
   const fetchBalance = async () => {
-    if (!publicKey) return;
+    if (!currentBusinessData?.walletAddress) return;
 
     setLoading(true);
     try {
-      const solBalance = await getSOLBalance();
+      const publicKey = new PublicKey(currentBusinessData.walletAddress);
+      const lamports = await connection.getBalance(publicKey);
+      const solBalance = lamports / LAMPORTS_PER_SOL;
       setBalance(solBalance);
       setLastUpdated(new Date());
+      console.log('✅ Balance fetched successfully:', { solBalance, walletAddress: currentBusinessData.walletAddress });
     } catch (error) {
-      console.error('Error fetching balance:', error);
+      console.error('❌ Error fetching balance:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleRefresh = async () => {
+    console.log('🔄 Manual refresh triggered');
     await refreshRates();
-    if (connected && publicKey) {
+    if (currentBusinessData?.walletAddress) {
       await fetchBalance();
+    } else {
+      console.log('⚠️ No wallet address available for refresh');
     }
   };
 
-  const handleAirdrop = async () => {
-    if (!publicKey) return;
-
-    try {
-      await requestAirdrop(1);
-      // Refresh balance after airdrop
-      setTimeout(() => fetchBalance(), 2000);
-    } catch (error) {
-      console.error('Airdrop failed:', error);
+  const copyWalletAddress = () => {
+    if (currentBusinessData?.walletAddress) {
+      navigator.clipboard.writeText(currentBusinessData.walletAddress);
+      toast.success('Wallet address copied to clipboard!');
     }
   };
 
   const handleSendSOL = () => {
-    if (connected && publicKey) {
+    if (currentBusinessData?.walletAddress) {
       openSendSOLModal();
     }
   };
@@ -114,10 +157,18 @@ const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> 
               <h3 className="font-semibold text-md">
                 {business?.name || 'Brand'}
               </h3>
-              {connected && publicKey && (
-                <p className=" text-sm font-mono">
-                  {publicKey.toString().slice(0, 4)}...{publicKey.toString().slice(-4)}
-                </p>
+              {currentBusinessData?.walletAddress && (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-mono">
+                    {currentBusinessData.walletAddress.slice(0, 4)}...{currentBusinessData.walletAddress.slice(-4)}
+                  </p>
+                  <button
+                    onClick={copyWalletAddress}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -129,18 +180,26 @@ const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> 
         
 
         {/* Wallet Status */}
-        {!connected ? (
+        {!currentBusinessData ? (
           <div className="text-center py-4">
             <div className="bg-white/10 rounded-full p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
               <Wallet className="h-6 w-6" />
             </div>
-            <h4 className="text-sm font-semibold mb-2">Connect Your Wallet</h4>
-            <p className="text-purple-100 text-xs mb-3">Connect your Phantom wallet to manage brand finances</p>
+            <h4 className="text-sm font-semibold mb-2">Loading Business Data</h4>
+            <p className="text-purple-100 text-xs mb-3">Fetching your brand information...</p>
+          </div>
+        ) : !currentBusinessData.walletAddress ? (
+          <div className="text-center py-4">
+            <div className="bg-white/10 rounded-full p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
+              <Wallet className="h-6 w-6" />
+            </div>
+            <h4 className="text-sm font-semibold mb-2">No Brand Wallet</h4>
+            <p className="text-purple-100 text-xs mb-3">This brand doesn't have a wallet yet. Please contact support.</p>
             <button
-              onClick={() => setVisible(true)}
+              onClick={handleRefresh}
               className="bg-white text-purple-600 font-semibold px-4 py-2 rounded-lg hover:bg-purple-50 transition text-sm"
             >
-              Connect Wallet
+              Refresh Data
             </button>
           </div>
         ) : (
@@ -179,13 +238,13 @@ const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> 
             {/* Action Buttons */}
             <div className="grid grid-cols-3 gap-2">
               <button
-                onClick={handleAirdrop}
-                disabled={solanaLoading}
-                className="bg-white/20  border border-white/30 p-2 hover:bg-white/30 transition flex justify-center items-center gap-2 disabled:opacity-50"
+                onClick={handleRefresh}
+                disabled={loading}
+                className="bg-white/20 border border-white/30 p-2 hover:bg-white/30 transition flex justify-center items-center gap-2 disabled:opacity-50"
               >
                 <ArrowUpDown className="h-4 w-4" />
                 <span className="text-xs font-medium">
-                  {solanaLoading ? 'Loading...' : 'SWAP'}
+                  {loading ? 'Loading...' : 'REFRESH'}
                 </span>
               </button>
 
@@ -196,7 +255,7 @@ const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> 
                 <PlusCircle className="h-4 w-4" />
                 <span className="text-xs font-medium">BUY</span>
               </button>
-              
+
               <button
                 onClick={handleSendSOL}
                 className="bg-white/20 border border-white/30 p-2 hover:bg-white/30 transition flex justify-center items-center gap-2"
@@ -204,8 +263,6 @@ const BrandWalletWithLocalCurrency: React.FC<BrandWalletWithLocalCurrencyProps> 
                 <CreditCard className="h-4 w-4" />
                 <span className="text-xs font-medium">PAY</span>
               </button>
-              
-              
             </div>
           </>
         )}

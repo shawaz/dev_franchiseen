@@ -53,20 +53,20 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
 
   const [newTag, setNewTag] = useState('');
 
+  // Get franchise data first to get the brand ID
+  const franchiseData = useQuery(api.franchise.getById, { franchiseId });
+
   // Queries
-  const transactions = useQuery(api.financialTransactions.getTransactions, {
+  const transactions = useQuery(api.transactions.getTransactionsByBusiness,
+    franchiseData?.brandId ? { businessId: franchiseData.brandId } : "skip"
+  );
+  const investmentStats = useQuery(api.investments.getFranchiseInvestmentStats, {
     franchiseId,
-    limit: 20,
-  });
-  const categories = useQuery(api.financialTransactions.getTransactionCategories, {});
-  const financialSummary = useQuery(api.financialTransactions.getFinancialSummary, {
-    franchiseId,
-    period: "month",
   });
 
   // Mutations
-  const addTransaction = useMutation(api.financialTransactions.addTransaction);
-  const updateTransactionStatus = useMutation(api.financialTransactions.updateTransactionStatus);
+  const addTransaction = useMutation(api.transactions.createTransaction);
+  const updateTransactionStatus = useMutation(api.transactions.updateTransactionStatus);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,16 +78,19 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
 
     try {
       await addTransaction({
-        franchiseId,
         type: formData.type,
-        category: formData.category,
-        description: formData.description,
         amount: parseFloat(formData.amount),
-        currency: 'USD', // TODO: Get from business settings
-        transactionDate: new Date(formData.transactionDate).getTime(),
-        verificationMethod: formData.verificationMethod || undefined,
-        tags: formData.tags.length > 0 ? formData.tags : undefined,
-        notes: formData.notes || undefined,
+        currency: 'USD',
+        franchiseId,
+        brandId: franchiseData?.brandId,
+        description: formData.description,
+        metadata: {
+          category: formData.category,
+          transactionDate: new Date(formData.transactionDate).getTime(),
+          verificationMethod: formData.verificationMethod,
+          tags: formData.tags,
+          notes: formData.notes,
+        },
       });
 
       toast.success('Transaction added successfully');
@@ -110,7 +113,7 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
     }
   };
 
-  const handleApproveTransaction = async (transactionId: Id<"financialTransactions">) => {
+  const handleApproveTransaction = async (transactionId: Id<"transactions">) => {
     try {
       await updateTransactionStatus({
         transactionId,
@@ -123,12 +126,12 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
     }
   };
 
-  const handleRejectTransaction = async (transactionId: Id<"financialTransactions">) => {
+  const handleRejectTransaction = async (transactionId: Id<"transactions">) => {
     try {
       await updateTransactionStatus({
         transactionId,
         status: 'rejected',
-        rejectionReason: 'Rejected by manager',
+        metadata: { rejectionReason: 'Rejected by manager' },
       });
       toast.success('Transaction rejected');
     } catch (error) {
@@ -161,9 +164,9 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Income</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Investment</p>
               <p className="text-2xl font-bold text-green-600">
-                {formatAmount(financialSummary?.summary.totalIncome || 0)}
+                {formatAmount(investmentStats?.totalAmountUSD || 0)}
               </p>
             </div>
             <TrendingUp className="h-6 w-6 text-green-500" />
@@ -173,9 +176,9 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Expenses</p>
-              <p className="text-2xl font-bold text-red-600">
-                {formatAmount(financialSummary?.summary.totalExpenses || 0)}
+              <p className="text-sm text-gray-600 dark:text-gray-400">Total Shares</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {investmentStats?.totalShares || 0}
               </p>
             </div>
             <TrendingDown className="h-6 w-6 text-red-500" />
@@ -185,11 +188,9 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Net Profit</p>
-              <p className={`text-2xl font-bold ${
-                (financialSummary?.summary.netProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {formatAmount(financialSummary?.summary.netProfit || 0)}
+              <p className="text-sm text-gray-600 dark:text-gray-400">Unique Investors</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {investmentStats?.uniqueInvestors.size || 0}
               </p>
             </div>
             <DollarSign className="h-6 w-6 text-blue-500" />
@@ -245,7 +246,10 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories?.[formData.type]?.map((category) => (
+                      {(formData.type === 'income'
+                        ? ['sales', 'investment', 'other_income']
+                        : ['rent', 'utilities', 'supplies', 'marketing', 'other_expense']
+                      ).map((category) => (
                         <SelectItem key={category} value={category}>
                           {category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                         </SelectItem>
@@ -383,20 +387,20 @@ export default function TransactionManager({ franchiseId }: TransactionManagerPr
                 <div>
                   <p className="font-semibold">{transaction.description}</p>
                   <p className="text-sm text-gray-600">
-                    {transaction.category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} • 
-                    {new Date(transaction.transactionDate).toLocaleDateString()}
+                    {transaction.metadata?.category?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'General'} •
+                    {new Date(transaction.metadata?.transactionDate || transaction._creationTime).toLocaleDateString()}
                   </p>
-                  {transaction.tags && transaction.tags.length > 0 && (
+                  {transaction.metadata?.tags && transaction.metadata.tags.length > 0 && (
                     <div className="flex gap-1 mt-1">
-                      {transaction.tags.map((tag) => (
+                      {transaction.metadata.tags.map((tag: string) => (
                         <Badge key={tag} variant="outline" className="text-xs">
                           {tag}
                         </Badge>
                       ))}
                     </div>
                   )}
-                  {transaction.frcTokensIssued && (
-                    <p className="text-sm text-purple-600">+{transaction.frcTokensIssued} FRC tokens</p>
+                  {transaction.metadata?.frcTokensIssued && (
+                    <p className="text-sm text-purple-600">+{transaction.metadata.frcTokensIssued} FRC tokens</p>
                   )}
                 </div>
               </div>

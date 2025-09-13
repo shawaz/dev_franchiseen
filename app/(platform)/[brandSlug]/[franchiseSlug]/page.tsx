@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { currentUser } from '@clerk/nextjs/server';
 import { notFound } from 'next/navigation';
 import FranchiseInvestmentWithAnchor from "@/components/franchise/FranchiseInvestmentWithAnchor";
-import FranchiseTokenInvestmentView from "@/components/franchise/FranchiseTokenInvestmentView";
+// FranchiseTokenInvestmentView removed - FRC token functionality no longer supported
 import RevenueDistribution from "@/components/franchise/RevenueDistribution";
 import FranchiseImageGallery from "@/components/franchise/FranchiseImageGallery";
 
@@ -26,12 +26,12 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
   const user = await currentUser();
 
   // Get business by slug first
-  const business = await fetchQuery(api.businesses.getBySlug, { slug: brandSlug });
+  const business = await fetchQuery(api.brands.getBySlug, { slug: brandSlug });
   if (!business) return notFound();
 
   // Get franchise by slug
   const franchise = await fetchQuery(api.franchise.getBySlug, {
-    businessSlug: brandSlug,
+    brandSlug: brandSlug,
     franchiseSlug: franchiseSlug,
   });
   if (!franchise) return notFound();
@@ -110,7 +110,11 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
         </div>
 
          {/* Image Gallery - Desktop Grid / Mobile Slider */}
-        <FranchiseImageGallery />
+        <FranchiseImageGallery
+          images={franchise?.images || business?.outletImages || []}
+          brandName={business?.name || "Brand"}
+          franchiseName={franchise?.building || "Franchise"}
+        />
 
         <div className="max-w-7xl mx-auto p-6">
           <div className=" flex justify-between">
@@ -143,9 +147,17 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
                 {franchise?.locationAddress}
               </div>
               <div className="text-gray-600 dark:text-gray-400">
-                Investment: {franchise?.totalInvestment?.toLocaleString()} •
-                Carpet Area: {franchise?.carpetArea?.toLocaleString()} sq.ft
+                Investment: ${franchise?.totalInvestment?.toLocaleString()} •
+                Carpet Area: {franchise?.carpetArea?.toLocaleString()} sq.ft •
+                Cost per sq.ft: ${franchise?.costPerArea?.toLocaleString()}
               </div>
+              {business?.franchiseFee && (
+                <div className="text-gray-600 dark:text-gray-400 mt-1">
+                  Franchise Fee: ${business.franchiseFee.toLocaleString()} •
+                  Setup Cost: ${business.setupCost?.toLocaleString() || 'N/A'} •
+                  Working Capital: ${business.threeYearWorkingCapital?.toLocaleString() || 'N/A'}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -190,7 +202,7 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
 
             {/* Anchor-based Investment Component */}
             <FranchiseInvestmentWithAnchor
-              businessSlug={brandSlug}
+              brandSlug={brandSlug}
               franchiseSlug={franchiseSlug}
               franchiseData={{
                 building: franchise?.building || "Franchise",
@@ -206,13 +218,7 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
         </section>
       )}
 
-      {/* Franchise Token Investment View */}
-      <section className="bg-white dark:bg-stone-800/50 p-6">
-        <FranchiseTokenInvestmentView
-          franchise={franchise}
-          business={business}
-        />
-      </section>
+      {/* FRC Token Investment View removed - functionality no longer supported */}
 
       {/* Revenue Distribution - Only for franchise owners */}
       {convexUser && franchise && franchise.owner_id === convexUser._id && (
@@ -221,7 +227,7 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
             Revenue Management
           </h2>
           <RevenueDistribution
-            businessSlug={brandSlug}
+            brandSlug={brandSlug}
             franchiseSlug={franchiseSlug}
           />
         </section>
@@ -270,133 +276,317 @@ export default async function FranchisePage({ params }: FranchisePageProps) {
         </div>
       </section>
 
+      {/* Brand Information & Outlet Images */}
+      <section className="bg-white dark:bg-stone-800/50 p-6">
+        <h2 className="text-2xl font-semibold mb-4 dark:text-white">
+          About {business?.name}
+        </h2>
+
+        {/* Brand Description */}
+        {business?.about && (
+          <div className="mb-6">
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              {business.about}
+            </p>
+          </div>
+        )}
+
+        {/* Brand Outlet Images */}
+        {business?.outletImages && business.outletImages.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-3 dark:text-white">Brand Outlet Gallery</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {business.outletImages
+                .filter((imageUrl: string) => imageUrl && !imageUrl.startsWith('blob:') && imageUrl.trim() !== '')
+                .map((imageUrl: string, index: number) => (
+                  <div key={index} className="relative h-48 rounded-lg overflow-hidden">
+                    <Image
+                      src={imageUrl}
+                      alt={`${business.name} Outlet ${index + 1}`}
+                      fill
+                      className="object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                ))}
+            </div>
+            {business.outletImages.filter((imageUrl: string) => imageUrl && !imageUrl.startsWith('blob:') && imageUrl.trim() !== '').length === 0 && (
+              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
+                Brand outlet images are being processed. Please check back later.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Brand Details Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-3 dark:text-white">Brand Details</h3>
+            <div className="space-y-2">
+              {business?.currency && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Currency:</span>
+                  <span className="font-medium dark:text-white">{business.currency}</span>
+                </div>
+              )}
+              {business?.min_area && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Minimum Area:</span>
+                  <span className="font-medium dark:text-white">{business.min_area.toLocaleString()} sq.ft</span>
+                </div>
+              )}
+              {business?.serviceable_countries && business.serviceable_countries.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Serviceable Countries:</span>
+                  <span className="font-medium dark:text-white">{business.serviceable_countries.join(', ')}</span>
+                </div>
+              )}
+              {business?.walletAddress && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Wallet Address:</span>
+                  <span className="font-medium dark:text-white text-xs">{business.walletAddress.slice(0, 8)}...{business.walletAddress.slice(-8)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold mb-3 dark:text-white">Investment Requirements</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Franchise Fee:</span>
+                <span className="font-medium dark:text-white">${business?.franchiseFee?.toLocaleString() || 'Contact for details'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Setup Cost:</span>
+                <span className="font-medium dark:text-white">${business?.setupCost?.toLocaleString() || 'Contact for details'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Working Capital:</span>
+                <span className="font-medium dark:text-white">${business?.threeYearWorkingCapital?.toLocaleString() || 'Contact for details'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Cost per sq.ft:</span>
+                <span className="font-medium dark:text-white">${business?.costPerSqft?.toLocaleString() || business?.costPerArea?.toLocaleString() || 'Contact for details'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Product List */}
       <section className="bg-white dark:bg-stone-800/50 p-6 ">
         <h2 className="text-2xl font-semibold mb-4 dark:text-white">
           Products & Services
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
-            <div className="relative h-48">
-              <Image
-                src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop&crop=center"
-                alt="Premium Service Package"
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="p-4">
-              <h3 className="font-medium dark:text-white">Premium Service Package</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Complete business solution with premium features
-              </p>
-              <p className="text-primary dark:text-primary/90 font-medium mt-2">
-                ₹2,500
-              </p>
-            </div>
-          </div>
+          {business?.productsServices && Array.isArray(business.productsServices) && business.productsServices.length > 0 ? (
+            business.productsServices.map((product: any, index: number) => (
+              <div key={index} className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
+                <div className="relative h-48">
+                  <Image
+                    src={
+                      (product.image && !product.image.startsWith('blob:') && product.image.trim() !== '')
+                        ? product.image
+                        : (product.imageUrl && !product.imageUrl.startsWith('blob:') && product.imageUrl.trim() !== '')
+                          ? product.imageUrl
+                          : (product.photoUrl && !product.photoUrl.startsWith('blob:') && product.photoUrl.trim() !== '')
+                            ? product.photoUrl
+                            : "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop&crop=center"
+                    }
+                    alt={product.name || product.title || "Product"}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium dark:text-white">{product.name || product.title}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    {product.description || "No description available"}
+                  </p>
+                  <p className="text-primary dark:text-primary/90 font-medium mt-2">
+                    ${product.price?.toLocaleString() || 'Price on request'}
+                  </p>
+                </div>
+              </div>
+            ))
+          ) : (
+            // Fallback to default products if no brand products available
+            <>
+              <div className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
+                <div className="relative h-48">
+                  <Image
+                    src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop&crop=center"
+                    alt="Premium Service Package"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium dark:text-white">Premium Service Package</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Complete business solution with premium features
+                  </p>
+                  <p className="text-primary dark:text-primary/90 font-medium mt-2">
+                    $2,500
+                  </p>
+                </div>
+              </div>
 
-          <div className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
-            <div className="relative h-48">
-              <Image
-                src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop&crop=center"
-                alt="Consultation Service"
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="p-4">
-              <h3 className="font-medium dark:text-white">Business Consultation</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Expert guidance for business growth and strategy
-              </p>
-              <p className="text-primary dark:text-primary/90 font-medium mt-2">
-                ₹1,200
-              </p>
-            </div>
-          </div>
+              <div className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
+                <div className="relative h-48">
+                  <Image
+                    src="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop&crop=center"
+                    alt="Business Consultation"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium dark:text-white">Business Consultation</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Expert guidance for business growth and strategy
+                  </p>
+                  <p className="text-primary dark:text-primary/90 font-medium mt-2">
+                    $1,200
+                  </p>
+                </div>
+              </div>
 
-          <div className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
-            <div className="relative h-48">
-              <Image
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop&crop=center"
-                alt="Digital Solutions"
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="p-4">
-              <h3 className="font-medium dark:text-white">Digital Solutions</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Modern digital tools and automation services
-              </p>
-              <p className="text-primary dark:text-primary/90 font-medium mt-2">
-                ₹800
-              </p>
-            </div>
-          </div>
+              <div className="border dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800">
+                <div className="relative h-48">
+                  <Image
+                    src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop&crop=center"
+                    alt="Digital Solutions"
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium dark:text-white">Digital Solutions</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Modern digital tools and automation services
+                  </p>
+                  <p className="text-primary dark:text-primary/90 font-medium mt-2">
+                    $800
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
       {/* Financial Projections */}
       <section className="bg-white dark:bg-stone-800/50 p-6 ">
         <h2 className="text-2xl font-semibold mb-4 dark:text-white">
-          Financial Projections
+          Financial Overview & Investment Details
         </h2>
-        <div className="space-y-4">
+
+        {/* Brand Financial Information */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="border dark:border-stone-700 rounded-lg p-4">
-            <h3 className="font-medium dark:text-white">Year 2025</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Revenue
-                </p>
-                <p className="font-medium dark:text-white">₹100</p>
+            <h3 className="font-medium dark:text-white mb-3">Brand Investment Structure</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Franchise Fee:</span>
+                <span className="font-medium dark:text-white">${business?.franchiseFee?.toLocaleString() || 'N/A'}</span>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Expenses
-                </p>
-                <p className="font-medium dark:text-white">₹100</p>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Setup Cost:</span>
+                <span className="font-medium dark:text-white">${business?.setupCost?.toLocaleString() || 'N/A'}</span>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Profit
-                </p>
-                <p className="font-medium dark:text-white">₹100</p>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Working Capital (3 years):</span>
+                <span className="font-medium dark:text-white">${business?.threeYearWorkingCapital?.toLocaleString() || 'N/A'}</span>
               </div>
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">ROI</p>
-                <p className="font-medium dark:text-white">10%</p>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Cost per sq.ft:</span>
+                <span className="font-medium dark:text-white">${business?.costPerSqft?.toLocaleString() || business?.costPerArea?.toLocaleString() || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="border dark:border-stone-700 rounded-lg p-4">
+            <h3 className="font-medium dark:text-white mb-3">This Franchise Investment</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Total Investment:</span>
+                <span className="font-medium dark:text-white">${franchise?.totalInvestment?.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Area Size:</span>
+                <span className="font-medium dark:text-white">{franchise?.carpetArea?.toLocaleString()} sq.ft</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Total Shares:</span>
+                <span className="font-medium dark:text-white">{franchise?.totalShares?.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Share Price:</span>
+                <span className="font-medium dark:text-white">$1.00</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Available Shares:</span>
+                <span className="font-medium dark:text-white">{franchise?.selectedShares?.toLocaleString()}</span>
               </div>
             </div>
           </div>
         </div>
-        <div className="space-y-4 mt-4">
+
+        {/* Projected Returns */}
+        <div className="space-y-4">
           <div className="border dark:border-stone-700 rounded-lg p-4">
-            <h3 className="font-medium dark:text-white">Year 2025</h3>
+            <h3 className="font-medium dark:text-white">Year 1 Projections</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Revenue
+                  Projected Revenue
                 </p>
-                <p className="font-medium dark:text-white">₹100</p>
+                <p className="font-medium dark:text-white">${Math.round((franchise?.totalInvestment || 0) * 0.8).toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Expenses
+                  Operating Expenses
                 </p>
-                <p className="font-medium dark:text-white">₹100</p>
+                <p className="font-medium dark:text-white">${Math.round((franchise?.totalInvestment || 0) * 0.6).toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Profit
+                  Net Profit
                 </p>
-                <p className="font-medium dark:text-white">₹100</p>
+                <p className="font-medium dark:text-white">${Math.round((franchise?.totalInvestment || 0) * 0.2).toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">ROI</p>
-                <p className="font-medium dark:text-white">10%</p>
+                <p className="font-medium dark:text-white">20%</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border dark:border-stone-700 rounded-lg p-4">
+            <h3 className="font-medium dark:text-white">Year 2-3 Projections</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Projected Revenue
+                </p>
+                <p className="font-medium dark:text-white">${Math.round((franchise?.totalInvestment || 0) * 1.2).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Operating Expenses
+                </p>
+                <p className="font-medium dark:text-white">${Math.round((franchise?.totalInvestment || 0) * 0.7).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Net Profit
+                </p>
+                <p className="font-medium dark:text-white">${Math.round((franchise?.totalInvestment || 0) * 0.5).toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">ROI</p>
+                <p className="font-medium dark:text-white">50%</p>
               </div>
             </div>
           </div>

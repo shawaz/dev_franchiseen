@@ -16,14 +16,14 @@ import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import Image from 'next/image';
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   logoUrl?: string;
 }
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  businessId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;

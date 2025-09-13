@@ -9,18 +9,23 @@ let isAnchorAvailable = false;
 
 try {
   // Test if Anchor and BN are properly available
-  if (typeof BN !== 'undefined' && BN) {
-    // Test BN functionality
-    const testBN = new BN(100);
-    if (testBN && typeof testBN.toNumber === 'function' && testBN.toNumber() === 100) {
-      BNClass = BN;
-      isAnchorAvailable = true;
-      console.log('Anchor BN is available and functional');
-    } else {
-      throw new Error('BN test failed');
+  if (typeof BN !== 'undefined' && BN && BN.prototype) {
+    // Test BN functionality with more robust error handling
+    try {
+      const testBN = new BN(100);
+      if (testBN && typeof testBN.toNumber === 'function' && testBN.toNumber() === 100) {
+        BNClass = BN;
+        isAnchorAvailable = true;
+        console.log('Anchor BN is available and functional');
+      } else {
+        throw new Error('BN test failed - methods not working');
+      }
+    } catch (bnError) {
+      console.warn('BN instantiation failed:', bnError);
+      throw new Error('BN instantiation failed');
     }
   } else {
-    throw new Error('BN is not defined');
+    throw new Error('BN is not defined or missing prototype');
   }
 } catch (error) {
   console.warn('Anchor BN not available or not functional:', error);
@@ -140,8 +145,28 @@ export class FranchiseProgram {
           return;
         }
 
-        this.program = new Program(IDL as any, provider);
-        console.log('Anchor program initialized successfully');
+        try {
+          // Additional check for required dependencies
+          if (!provider || !provider.connection) {
+            console.warn('Provider or connection not available');
+            this.program = null;
+            return;
+          }
+
+          this.program = new Program(IDL as any, provider);
+          console.log('Anchor program initialized successfully');
+        } catch (programError) {
+          console.error('Failed to initialize Anchor program:', programError);
+          console.error('Error details:', {
+            hasIDL: !!IDL,
+            hasProvider: !!provider,
+            hasWallet: !!provider?.wallet,
+            hasConnection: !!provider?.connection,
+            isBNAvailable: isAnchorAvailable
+          });
+          this.program = null;
+          return;
+        }
 
         // Test program functionality
         if (!this.program || !this.program.methods) {

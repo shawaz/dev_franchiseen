@@ -8,7 +8,7 @@ import Image from "next/image";
 import { Card } from "../ui/card";
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   logoUrl?: string;
   industry?: { name: string } | null;
@@ -29,7 +29,7 @@ interface Share {
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  brandId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;

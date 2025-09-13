@@ -23,8 +23,8 @@ function BusinessSideNav({ businessId }: BusinessSideNavProps) {
   const createUser = useMutation(api.myFunctions.createUser);
   const [convexUserId, setConvexUserId] = useState<string | null>(null);
 
-  const business = useQuery(api.businesses.getById, {
-    businessId: businessId as Id<"businesses">,
+  const business = useQuery(api.brands.getById, {
+    brandId: businessId as Id<"brands">,
   });
 
   // Get business slug for routing
@@ -56,11 +56,9 @@ function BusinessSideNav({ businessId }: BusinessSideNavProps) {
               name: business.name || "",
               logo_url: business.logoUrl || "/logo/logo-2.svg",
               industry:
-                business.industry?.name ||
                 business.industry_id ||
                 "No industry",
               category:
-                business.category?.name ||
                 business.category_id ||
                 "No category",
               costPerArea: business.costPerArea,

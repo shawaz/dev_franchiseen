@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Keypair } from '@solana/web3.js';
-import * as bip39 from 'bip39';
 
 interface WalletData {
   address: string;
@@ -49,19 +48,17 @@ export default function WalletCreationStep({ data, onUpdate }: WalletCreationSte
   }, [data.seedPhrase]);
 
   const generateSeedPhrase = (): string[] => {
-    try {
-      const mnemonic = bip39.generateMnemonic(128); // 12 words
-      return mnemonic.split(' ');
-    } catch (error) {
-      console.error('Error generating seed phrase:', error);
-      // Fallback to a simple word list if bip39 fails
-      const words = [
-        'abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract',
-        'absurd', 'abuse', 'access', 'accident', 'account', 'accuse', 'achieve', 'acid',
-        'acoustic', 'acquire', 'across', 'act', 'action', 'actor', 'actress', 'actual'
-      ];
-      return Array.from({ length: 12 }, () => words[Math.floor(Math.random() * words.length)]);
-    }
+    // Simple word list for demonstration purposes
+    const words = [
+      'abandon', 'ability', 'able', 'about', 'above', 'absent', 'absorb', 'abstract',
+      'absurd', 'abuse', 'access', 'accident', 'account', 'accuse', 'achieve', 'acid',
+      'acoustic', 'acquire', 'across', 'act', 'action', 'actor', 'actress', 'actual',
+      'adapt', 'add', 'addict', 'address', 'adjust', 'admit', 'adult', 'advance',
+      'advice', 'aerobic', 'affair', 'afford', 'afraid', 'again', 'against', 'agent',
+      'agree', 'ahead', 'aim', 'air', 'airport', 'aisle', 'alarm', 'album'
+    ];
+
+    return Array.from({ length: 12 }, () => words[Math.floor(Math.random() * words.length)]);
   };
 
   const generateWallet = async () => {

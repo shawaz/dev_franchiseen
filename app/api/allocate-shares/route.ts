@@ -12,13 +12,21 @@ export async function POST(req: NextRequest) {
     }
     // Call the Convex mutation to allocate shares
     try {
-      await convex.mutation(api.shares.purchaseFranchiseShares, {
+      await convex.mutation(api.shares.allocateShares, {
         franchiseId,
-        userId,
-        userName,
-        userImage,
-        numberOfShares,
-        costPerShare,
+        brandId: "placeholder" as any, // This would need to be passed from the frontend
+        shareholderId: userId,
+        shareholderWalletAddress: undefined,
+        sharesAllocated: numberOfShares,
+        sharePrice: costPerShare,
+        shareType: "franchise",
+        vestingPeriod: undefined,
+        transferRestrictions: undefined,
+        tokenMint: undefined,
+        tokenAccount: undefined,
+        mintTransactionHash: undefined,
+        allocationNotes: `Allocated to ${userName}`,
+        metadata: { userName, userImage },
       });
       return NextResponse.json({ success: true });
     } catch {

@@ -37,7 +37,7 @@ interface FranchiseCardProps {
   brandSlug?: string;
   franchiseSlug?: string;
   // Business/Brand information
-  businessId?: Id<"businesses">;
+  businessId?: Id<"brands">;
 }
 
 const FranchiseCard: React.FC<FranchiseCardProps> = ({
@@ -84,8 +84,8 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
 
   // Get business data from Convex
   const business = useQuery(
-    api.businesses.getById,
-    businessId ? { businessId } : "skip"
+    api.brands.getById,
+    businessId && typeof businessId === 'string' && businessId.length > 10 ? { brandId: businessId } : "skip"
   );
 
   // Get dynamic franchise data based on franchise ID
@@ -106,11 +106,7 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
     franchiseId ? { franchiseId } : "skip"
   );
 
-  // Get FRC token data for "live" type
-  const tokenData = useQuery(
-    api.frcTokens.getFranchiseToken,
-    type === "live" && franchiseId ? { franchiseId } : "skip"
-  );
+  // Token data removed - FRC tokens no longer supported
 
   // Get current user for share calculations
   const currentUser = useQuery(api.users.getCurrentUser, {});
@@ -144,37 +140,30 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
   const isLoadingDynamicData = () => {
     if (type === "fund") return fundingData === undefined && franchiseId;
     if (type === "launch") return investmentData === undefined && franchiseId;
-    if (type === "live") return (tokenData === undefined || investmentData === undefined) && franchiseId;
+    if (type === "live") return investmentData === undefined && franchiseId;
     return false;
   };
 
   // Calculate user's share value for live franchises
   const getUserShareValue = () => {
-    if (!currentUser || !investmentData || !tokenData) return 0;
+    if (!currentUser || !investmentData) return 0;
 
-    // Find user's shares in the investment data
-    const userInvestment = investmentData.investors?.topInvestors?.find(
-      (investor: any) => investor.userId === currentUser._id
-    );
-
-    if (!userInvestment) return 0;
-
-    // Calculate current value: shares * current token price (in USD, then convert)
-    const valueUSD = userInvestment.numberOfShares * (tokenData.tokenPrice || FIXED_USDT_PER_SHARE);
-    return convertUSDToCurrentCurrency(valueUSD);
+    // For now, return 0 as FRC token functionality has been removed
+    // This would need to be replaced with actual share tracking
+    return 0;
   };
 
   const renderCardContent = () => {
     switch (type) {
       case "fund":
         // Use dynamic funding data if available, fallback to props
-        const dynamicFundingProgress = fundingData?.fundingPercentage || 0;
-        const rawTotalRaised = fundingData?.totalRaised || fundingProgress || 0;
-        const rawFundingTarget = fundingData?.fundingTarget || fundingGoal || price;
-        const dynamicInvestorsCount = investmentData?.investors?.totalCount || investorsCount || 0;
+        const dynamicFundingProgress = fundingData?.fundingProgress || 0;
+        const rawTotalRaised = fundingData?.raisedAmount || fundingProgress || 0;
+        const rawFundingTarget = fundingData?.totalInvestment || fundingGoal || price;
+        const dynamicInvestorsCount = investmentData?.uniqueInvestors || investorsCount || 0;
 
         // Get USD amounts and convert to current currency
-        const totalInvestmentAmountUSD = investmentData?.franchise?.totalInvestment || rawFundingTarget;
+        const totalInvestmentAmountUSD = investmentData?.totalInvestment || rawFundingTarget;
         const totalRaisedAmountUSD = rawTotalRaised;
 
         // Convert USD amounts to current user's currency for display only
@@ -183,7 +172,7 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
 
         // Calculate shares based on USD amounts (not converted amounts)
         const totalSharesAvailable = calculateTotalShares(totalInvestmentAmountUSD);
-        const soldShares = investmentData?.investment?.totalShares || 0;
+        const soldShares = investmentData?.totalShares || 0;
         const availableShares = calculateAvailableShares(totalInvestmentAmountUSD, soldShares);
 
         return (
@@ -220,8 +209,8 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
         );
       case "launch":
         // Use dynamic launch data from investment tracking
-        const launchTotalInvestmentUSD = investmentData?.franchise?.totalInvestment || price;
-        const launchFundingPercentage = investmentData?.investment?.fundingPercentage || 0;
+        const launchTotalInvestmentUSD = investmentData?.totalInvestment || price;
+        const launchFundingPercentage = calculateLaunchProgress();
         const progressPercent = calculateLaunchProgress();
 
         // Convert USD amount to current currency for display only
@@ -229,8 +218,8 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
 
         // Calculate correct total shares for launch phase based on USD amounts
         const launchTotalShares = calculateTotalShares(launchTotalInvestmentUSD);
-        const launchSoldShares = investmentData?.investment?.totalShares || 0;
-        const launchInvestorsCount = investmentData?.investors?.totalCount || 0;
+        const launchSoldShares = investmentData?.totalShares || 0;
+        const launchInvestorsCount = investmentData?.uniqueInvestors || 0;
 
         // Calculate launch progress based on funding completion and time
         const launchProgressPercent = Math.min(100, (launchFundingPercentage + progressPercent) / 2);
@@ -277,11 +266,11 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
           </>
         );
       case "live":
-        // Use dynamic token data if available, fallback to props or calculated values (all in USD)
-        const liveMonthlyRevenueUSD = tokenData?.monthlyRevenue || 0;
-        const liveMonthlyExpensesUSD = tokenData?.monthlyExpenses || 0;
-        const liveTotalRevenueUSD = tokenData?.totalRevenue || currentBalance || 150000;
-        const liveTotalInvestmentUSD = investmentData?.franchise?.totalInvestment || totalBudget || 300000;
+        // Use dynamic investment data if available, fallback to props or calculated values (all in USD)
+        const liveMonthlyRevenueUSD = 0; // No token data available
+        const liveMonthlyExpensesUSD = 0; // No token data available
+        const liveTotalRevenueUSD = currentBalance || 150000;
+        const liveTotalInvestmentUSD = investmentData?.totalInvestment || totalBudget || 300000;
 
         // Convert all USD amounts to current currency
         const liveMonthlyRevenue = convertUSDToCurrentCurrency(liveMonthlyRevenueUSD);
@@ -293,7 +282,7 @@ const FranchiseCard: React.FC<FranchiseCardProps> = ({
         // Calculate correct total shares for live franchise based on USD amounts
         const liveTotalShares = calculateTotalShares(liveTotalInvestmentUSD);
 
-        const liveTokenPriceUSD = tokenData?.tokenPrice || FIXED_USDT_PER_SHARE;
+        const liveTokenPriceUSD = FIXED_USDT_PER_SHARE; // Fixed share price
         const liveTokenPrice = convertUSDToCurrentCurrency(liveTokenPriceUSD);
         const liveMarketCapUSD = liveTotalShares * liveTokenPriceUSD;
         const liveMarketCap = convertUSDToCurrentCurrency(liveMarketCapUSD);

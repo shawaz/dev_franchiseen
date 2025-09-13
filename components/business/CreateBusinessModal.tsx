@@ -8,6 +8,7 @@ import UploadcareImage from '@uploadcare/nextjs-loader'
 import { Button } from '../ui/button'
 import { useMutation, useAction, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
+import { Id } from '../../convex/_generated/dataModel'
 import Select, { MultiValue, StylesConfig, SingleValue } from 'react-select'
 import countryList from 'react-select-country-list'
 import { useSolOnly } from '@/contexts/SolOnlyContext'
@@ -118,13 +119,13 @@ const selectStylesCategory = makeSelectStyles<CategoryOption, false>();
 export default function CreateBusinessModal({ isOpen, onClose }: CreateBusinessModalProps) {
   const { isSignedIn } = useUser()
   const { currency, formatSol } = useSolOnly()
-  const createBusiness = useMutation(api.businesses.create)
+  const createBusiness = useMutation(api.brands.create)
   const getUploadSignature = useAction(api.uploadcare.getUploadSignature)
   const [selectedIndustry, setSelectedIndustry] = React.useState('')
   const router = useRouter()
 
   const industries = useQuery(api.industries.listIndustries, {}) || [];
-  const categories = useQuery(api.myFunctions.listCategories, selectedIndustry ? { industry_id: selectedIndustry } : 'skip') as Category[] || [];
+  const categories = useQuery(api.categories.getByIndustry, selectedIndustry ? { industryId: selectedIndustry as Id<"industries"> } : 'skip') as Category[] || [];
   const industryOptions: IndustryOption[] = industries.map((i: { _id: string; name: string }) => ({ label: i.name, value: i._id }));
   const categoryOptions: CategoryOption[] = categories.map((c: Category) => ({ label: c.name, value: c._id, industry_id: c.industry_id }));
 

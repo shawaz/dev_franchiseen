@@ -43,7 +43,7 @@ export default async function CashierPage({ params }: CashierPageProps) {
   }
 
   // Get business by slug
-  const business = await fetchQuery(api.businesses.getBySlug, { slug: brandSlug });
+  const business = await fetchQuery(api.brands.getBySlug, { slug: brandSlug });
   if (!business) return notFound();
 
   // Check if the current user is the owner of this business
@@ -59,7 +59,7 @@ export default async function CashierPage({ params }: CashierPageProps) {
   // Get the specific franchise by slug
   const allFranchises = await fetchQuery(api.franchise.list, {});
   const franchise = (allFranchises as Doc<"franchise">[]).find(f =>
-    f.businessId === business._id && f.slug === franchiseSlug
+    f.brandId === business._id && f.slug === franchiseSlug
   );
 
   if (!franchise) return notFound();

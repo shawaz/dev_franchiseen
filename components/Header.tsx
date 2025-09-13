@@ -70,14 +70,10 @@ function Header() {
 
   // Function to handle successful email verification
   const handleEmailVerificationSuccess = () => {
-    // Close email modal and open onboarding
+    // Close email modal and skip onboarding - user is ready to use the platform
     setIsEmailVerificationOpen(false);
-    openUserOnboardingModal({
-      onComplete: (userType) => {
-        console.log(`User completed onboarding as: ${userType}`);
-        // Navigation to /home is handled in the modal itself
-      }
-    });
+    // No need to open onboarding modal - KYC is skipped
+    console.log('User authenticated successfully - KYC verification skipped');
   };
 
   // Use global currency context
@@ -113,23 +109,26 @@ function Header() {
   const isFranchiseenEmail = email?.endsWith('@franchiseen.com') || false;
 
   const searchResults = useQuery(
-    api.businesses.searchByName,
+    api.brands.searchByName,
     searchQuery ? { searchQuery } : "skip",
   );
 
   useEffect(() => {
     async function fetchUserId() {
       if (email) {
-        const id = await createUser({ email });
+        const id = await createUser({
+          email,
+          avatar: user?.imageUrl // Use Clerk's profile image if available
+        });
         setUserId(id);
       }
     }
     fetchUserId();
-  }, [email, createUser]);
+  }, [email, createUser, user?.imageUrl]);
 
   const userBusinesses =
     useQuery(
-      api.businesses.listByOwner,
+      api.brands.listByOwner,
       userId ? { ownerId: userId as Id<"users"> } : "skip",
     ) || [];
 
@@ -274,14 +273,14 @@ function Header() {
                               {business.name}
                             </h3>
                             <div className="flex items-center gap-2 mt-1">
-                              {business.industry && (
+                              {business.industry_id && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-stone-700 px-2 py-0.5 rounded">
-                                  {business.industry.name}
+                                  Industry
                                 </span>
                               )}
-                              {business.category && (
+                              {business.category_id && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-stone-700 px-2 py-0.5 rounded">
-                                  {business.category.name}
+                                  Category
                                 </span>
                               )}
                             </div>
@@ -377,14 +376,14 @@ function Header() {
                                 {business.name}
                               </h3>
                               <div className="flex items-center gap-2 mt-1">
-                                {business.industry && (
+                                {business.industry_id && (
                                   <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-stone-700 px-2 py-0.5 rounded">
-                                    {business.industry.name}
+                                    Industry
                                   </span>
                                 )}
-                                {business.category && (
+                                {business.category_id && (
                                   <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-stone-700 px-2 py-0.5 rounded">
-                                    {business.category.name}
+                                    Category
                                   </span>
                                 )}
                               </div>
@@ -428,11 +427,6 @@ function Header() {
                   </button>
                 </div>
 
-                {/* Theme Switcher - Desktop */}
-                <div className="hidden sm:block mr-2">
-                  <ThemeSwitcher />
-                </div>
-
                 <SignedIn>
                   <div className="flex items-center gap-3 ml-2">
                     <Link
@@ -447,13 +441,6 @@ function Header() {
                       className="p-2 rounded-full hidden sm:block hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
                     >
                       <Heart className="h-5 w-5 text-stone-700 dark:text-stone-300" />
-                    </Link>
-                    <Link
-                      href="/escrow"
-                      className="p-2 rounded-full hidden sm:block hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
-                      aria-label="Escrow Management"
-                    >
-                      <Shield className="h-5 w-5 text-stone-700 dark:text-stone-300" />
                     </Link>
                     <button onClick={() => openTypeformCreateFranchiseModal()} className="p-2 rounded-full hidden sm:block hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors">
                       <PlusSquare className="h-5 w-5 text-stone-700 dark:text-stone-300" />
@@ -501,8 +488,7 @@ function Header() {
                               <div className="flex-1 min-w-0">
                                 <h3 className="text-sm font-medium truncate">
                                   {" "}
-                                  {convexUser?.first_name}{" "}
-                                  {convexUser?.family_name}
+                                  {convexUser?.email.split('@')[0]}
                                 </h3>
                                 <p className="text-xs text-gray-500 truncate">
                                                             {convexUser?.email}

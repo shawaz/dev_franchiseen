@@ -18,12 +18,12 @@ import {
 } from 'lucide-react';
 import { Id } from '@/convex/_generated/dataModel';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
-import { useGillFranchiseToken } from '@/hooks/useGillFranchiseToken';
+// FRC token functionality removed
 import { toast } from 'sonner';
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  businessId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;
@@ -56,37 +56,15 @@ interface MonthlyPayoutManagerProps {
 
 export default function MonthlyPayoutManager({ franchise }: MonthlyPayoutManagerProps) {
   const { formatAmount } = useGlobalCurrency();
-  const { 
-    processMonthlyPayouts, 
-    getFranchiseTokenData,
-    connected, 
-    loading 
-  } = useGillFranchiseToken();
+  // FRC token functionality removed
 
   const [tokenData, setTokenData] = useState<any>(null);
   const [payoutHistory, setPayoutHistory] = useState<PayoutRecord[]>([]);
   const [nextPayoutDate, setNextPayoutDate] = useState<Date | null>(null);
   const [canProcessPayout, setCanProcessPayout] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Load token data and payout history
-  useEffect(() => {
-    if (franchise.slug && connected) {
-      loadTokenData();
-      loadPayoutHistory();
-      calculateNextPayoutDate();
-    }
-  }, [franchise.slug, connected]);
-
-  const loadTokenData = async () => {
-    if (!franchise.slug) return;
-    
-    try {
-      const data = await getFranchiseTokenData(franchise.slug);
-      setTokenData(data);
-    } catch (error) {
-      console.error('Error loading token data:', error);
-    }
-  };
+  // FRC token functionality removed - no token data loading
 
   const loadPayoutHistory = async () => {
     // Mock payout history for now
@@ -129,26 +107,27 @@ export default function MonthlyPayoutManager({ franchise }: MonthlyPayoutManager
   };
 
   const handleProcessPayout = async () => {
-    if (!connected) {
-      toast.error('Please connect your wallet');
-      return;
-    }
-
     if (!canProcessPayout) {
       toast.error('Payouts can only be processed on the 1st of each month');
       return;
     }
 
     try {
-      await processMonthlyPayouts(franchise.slug || franchise._id);
-      
+      // Mock payout processing since FRC token functionality was removed
+      setLoading(true);
+
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // Reload data
-      await loadTokenData();
       await loadPayoutHistory();
-      
+
       toast.success('Monthly payout processed successfully!');
     } catch (error) {
       console.error('Error processing payout:', error);
+      toast.error('Failed to process payout');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -275,7 +254,7 @@ export default function MonthlyPayoutManager({ franchise }: MonthlyPayoutManager
           
           <Button
             onClick={handleProcessPayout}
-            disabled={loading || !connected || !canProcessPayout || currentNetProfit <= 0}
+            disabled={loading || !canProcessPayout || currentNetProfit <= 0}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {loading ? (
@@ -330,23 +309,7 @@ export default function MonthlyPayoutManager({ franchise }: MonthlyPayoutManager
             </div>
           </div>
           
-          <div className={`p-3 rounded-lg border ${
-            connected 
-              ? 'bg-green-50 border-green-200 text-green-800' 
-              : 'bg-stone-50 border-stone-200 text-stone-600'
-          }`}>
-            <div className="flex items-center gap-2 mb-1">
-              {connected ? (
-                <CheckCircle className="w-4 h-4" />
-              ) : (
-                <AlertTriangle className="w-4 h-4" />
-              )}
-              <span className="text-sm font-medium">Wallet Connection</span>
-            </div>
-            <div className="text-xs">
-              {connected ? 'Wallet connected' : 'Connect wallet to process'}
-            </div>
-          </div>
+
         </div>
       </Card>
 

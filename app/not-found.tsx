@@ -125,12 +125,12 @@ export default function NotFound() {
             Go Back
           </Button>
           
-          <Link href="/home">
+          {/* <Link href="/">
             <Button className="flex items-center gap-2 h-12 px-6 bg-blue-600 hover:bg-blue-700">
               <Home className="w-4 h-4" />
               Home
             </Button>
-          </Link>
+          </Link> */}
           
           {/* <Link href="/home">
             <Button 

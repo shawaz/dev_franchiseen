@@ -44,7 +44,7 @@ function FooterMobile() {
     <div className="bg-white/50 dark:bg-stone-800/50 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden w-full fixed bottom-0  border-t border-stone-200 dark:border-stone-700">
       <SignedIn>
         <div className="justify-between max-w-7xl mx-auto px-6 sm:px-6 lg:px-8 py-4 flex items-center">
-          <Link href={"/home"}>
+          <Link href={"/"}>
             <Compass className={getIconClasses("/")} color="currentColor" />
           </Link>
           <Link href={"/liked"}>

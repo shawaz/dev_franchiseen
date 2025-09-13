@@ -23,7 +23,7 @@ import Image from "next/image";
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   logoUrl?: string;
   industry?: { name: string } | null;
@@ -44,7 +44,7 @@ interface Share {
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  businessId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;

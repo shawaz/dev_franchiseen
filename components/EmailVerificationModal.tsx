@@ -28,7 +28,7 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ isOpen,
 
   // Lock body scroll when modal is open
   useBodyScrollLock(isOpen);
-  const upsertProfile = useMutation(api.myFunctions.upsertUserProfile);
+  const upsertProfile = useMutation(api.myFunctions.upsertProfile);
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [familyName, setFamilyName] = useState('');
@@ -209,24 +209,11 @@ const EmailVerificationModal: React.FC<EmailVerificationModalProps> = ({ isOpen,
         if (attempt.status === 'complete') {
           await setSignUpActive({ session: attempt.createdSessionId });
           
-          // Update Convex database with user profile
+          // Create simple user profile in Convex database
           try {
-            await upsertProfile({
-              email,
-              gender: 'male', // Default gender
-              first_name: email.split('@')[0], // Use email prefix as first name
-              family_name: '',
-              location: '',
-              formatted_address: '',
-              area: '',
-              district: '',
-              state: '',
-              country: '',
-              pincode: '',
-              monthly_income: '0',
-              investment_budget: '0',
-              phone: '',
-            });
+            // The user will be created automatically when they access the platform
+            // through the Header component's useEffect
+            console.log('User authenticated successfully - simple profile will be created automatically');
             onSuccess?.();
             onClose();
           } catch (convexError) {

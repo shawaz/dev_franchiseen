@@ -14,13 +14,13 @@ export default async function BusinessPage({ params }: BusinessPageProps) {
   const resolvedParams = await params;
   const brandSlug = resolvedParams.brandSlug;
 
-  // Get business by slug
-  const business = await fetchQuery(api.businesses.getBySlug, { slug: brandSlug });
+  // Get brand by slug
+  const business = await fetchQuery(api.brands.getBySlug, { slug: brandSlug });
   if (!business) return notFound();
 
-  // Fetch only publicly visible franchises for this business
-  const franchises = await fetchQuery(api.franchise.getPublicFranchisesByBusiness, {
-    businessId: business._id
+  // Fetch only publicly visible franchises for this brand
+  const franchises = await fetchQuery(api.franchise.getPublicFranchisesByBrand, {
+    brandId: business._id
   }) as Doc<"franchise">[];
 
   return (

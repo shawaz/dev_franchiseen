@@ -13,12 +13,12 @@ import { toast } from 'sonner';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 interface RevenueDistributionProps {
-  businessSlug: string;
+  brandSlug: string;
   franchiseSlug: string;
 }
 
 export default function RevenueDistribution({
-  businessSlug,
+  brandSlug,
   franchiseSlug
 }: RevenueDistributionProps) {
   const { connected } = useWallet();
@@ -40,11 +40,11 @@ export default function RevenueDistribution({
     if (connected) {
       loadFranchiseData();
     }
-  }, [connected, businessSlug, franchiseSlug]);
+  }, [connected, brandSlug, franchiseSlug]);
 
   const loadFranchiseData = async () => {
     try {
-      const franchise = await getFranchise(businessSlug, franchiseSlug);
+      const franchise = await getFranchise(brandSlug, franchiseSlug);
       setFranchiseData(franchise);
     } catch (error) {
       console.error('Error loading franchise data:', error);
@@ -96,7 +96,7 @@ export default function RevenueDistribution({
       // Convert to lamports
       const revenueInLamports = Math.floor(revenue * LAMPORTS_PER_SOL);
       
-      const tx = await distributeRevenue(businessSlug, franchiseSlug, revenueInLamports);
+      const tx = await distributeRevenue(brandSlug, franchiseSlug, revenueInLamports);
       if (tx) {
         setRevenueAmount('');
         await loadFranchiseData();

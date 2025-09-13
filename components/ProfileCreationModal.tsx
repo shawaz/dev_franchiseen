@@ -41,7 +41,7 @@ interface ProfileData {
 }
 
 const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({ isOpen, onClose, email }) => {
-  const upsertUserProfile = useMutation(api.myFunctions.upsertUserProfile);
+  const upsertProfile = useMutation(api.myFunctions.upsertProfile);
   const [isLoading, setIsLoading] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -114,7 +114,7 @@ const ProfileCreationModal: React.FC<ProfileCreationModalProps> = ({ isOpen, onC
 
     try {
       // Call Convex mutation
-      await upsertUserProfile({
+      await upsertProfile({
         gender: 'male', // Default to male, you might want to add a gender selection in your form
         first_name: profileData.full_name.split(' ')[0] || '',
         family_name: profileData.full_name.split(' ').slice(1).join(' ') || '',

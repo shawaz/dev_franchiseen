@@ -49,7 +49,7 @@ function FranchiseHeader() {
     <div className="bg-white dark:bg-stone-800 rounded-xl shadow-sm flex flex-col md:flex-row md:items-center md:justify-between mb-6">
       <div className="w-full">
         <div className="flex items-center px-6 py-4 border-b border-stone-200 dark:border-stone-700 justify-between">
-          <Link href={`/business/${franchise?.businessId}/franchise`}>
+          <Link href={`/business/${franchise?.brandId}/franchise`}>
             <div className="flex items-center">
               <MoveLeft className="mr-3" />
             </div>

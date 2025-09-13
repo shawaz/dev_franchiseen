@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 interface FranchiseInvestmentWithAnchorProps {
-  businessSlug: string;
+  brandSlug: string;
   franchiseSlug: string;
   franchiseData: {
     building: string;
@@ -26,7 +26,7 @@ interface FranchiseInvestmentWithAnchorProps {
 }
 
 export default function FranchiseInvestmentWithAnchor({
-  businessSlug,
+  brandSlug,
   franchiseSlug,
   franchiseData
 }: FranchiseInvestmentWithAnchorProps) {
@@ -55,13 +55,13 @@ export default function FranchiseInvestmentWithAnchor({
       loadFranchiseData();
       loadInvestorData();
     }
-  }, [program, connected, businessSlug, franchiseSlug, getFranchise, getInvestorTokenBalance]);
+  }, [program, connected, brandSlug, franchiseSlug, getFranchise, getInvestorTokenBalance]);
 
   const loadFranchiseData = async () => {
     if (typeof getFranchise !== 'function') return;
 
     try {
-      const franchise = await getFranchise(businessSlug, franchiseSlug);
+      const franchise = await getFranchise(brandSlug, franchiseSlug);
       if (franchise) {
         setOnChainData(franchise);
         // Convert BN to number for dividends - safely handle BN
@@ -82,7 +82,7 @@ export default function FranchiseInvestmentWithAnchor({
     if (!publicKey || typeof getInvestorTokenBalance !== 'function') return;
 
     try {
-      const balance = await getInvestorTokenBalance(businessSlug, franchiseSlug);
+      const balance = await getInvestorTokenBalance(brandSlug, franchiseSlug);
       setInvestorBalance(balance);
     } catch (error) {
       console.error('Error loading investor data:', error);
@@ -107,7 +107,7 @@ export default function FranchiseInvestmentWithAnchor({
 
     setLoading(true);
     try {
-      const tx = await investInFranchise(businessSlug, franchiseSlug, sharesToBuy);
+      const tx = await investInFranchise(brandSlug, franchiseSlug, sharesToBuy);
       if (tx) {
         // Refresh data after successful investment
         await loadFranchiseData();
@@ -126,7 +126,7 @@ export default function FranchiseInvestmentWithAnchor({
 
     setLoading(true);
     try {
-      const tx = await claimDividends(businessSlug, franchiseSlug);
+      const tx = await claimDividends(brandSlug, franchiseSlug);
       if (tx) {
         await loadFranchiseData();
         await loadInvestorData();

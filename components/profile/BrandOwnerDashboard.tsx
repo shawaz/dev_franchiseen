@@ -32,11 +32,11 @@ import SolanaTransactions from '@/components/wallet/SolanaTransactions';
 import { useGlobalCurrency } from '@/contexts/GlobalCurrencyContext';
 import { Id } from '@/convex/_generated/dataModel';
 import FranchisesListView from '@/components/franchise/FranchisesListView';
-import FranchiseApprovalTab from '@/components/franchise/FranchiseApprovalTab';
+import FranchiseRequestsTab from '@/components/franchise/FranchiseRequestsTab';
 import TeamsTab from '@/components/teams/TeamsTab';
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   slug?: string;
   logoUrl?: string;
@@ -53,7 +53,7 @@ interface Business {
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  brandId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;
@@ -263,7 +263,7 @@ const generateMockBrandSettings = (business: Business): BrandSettings => {
 };
 
 export default function BrandOwnerDashboard({ business, franchises, brandSlug }: BrandOwnerDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'franchises' | 'approvals' | 'contracts' | 'invoices' | 'earnings' | 'payouts' | 'transactions' | 'teams' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'franchises' | 'requests' | 'contracts' | 'invoices' | 'earnings' | 'payouts' | 'transactions' | 'teams' | 'settings'>('overview');
   // const router = useRouter();
 
   // Use global currency context for formatting
@@ -299,7 +299,7 @@ export default function BrandOwnerDashboard({ business, franchises, brandSlug }:
   const tabs = [
     { id: 'overview', label: 'Overview', icon: TrendingUp },
     { id: 'franchises', label: 'Franchises', icon: Store },
-    { id: 'approvals', label: 'Approvals', icon: CheckCircle },
+    { id: 'requests', label: 'Requests', icon: CheckCircle },
     { id: 'contracts', label: 'Contracts', icon: LinkIcon },
     { id: 'invoices', label: 'Invoices', icon: FileText },
     { id: 'earnings', label: 'Earnings', icon: DollarSign },
@@ -317,6 +317,7 @@ export default function BrandOwnerDashboard({ business, franchises, brandSlug }:
         onAddMoney={handleAddSOL}
         className="w-full"
         business={business}
+        brandSlug={business.slug || ''}
       />
 
       {/* Navigation Tabs */}
@@ -437,8 +438,8 @@ export default function BrandOwnerDashboard({ business, franchises, brandSlug }:
 
           )}
 
-          {activeTab === 'approvals' && (
-            <FranchiseApprovalTab business={business} />
+          {activeTab === 'requests' && (
+            <FranchiseRequestsTab business={business} />
           )}
 
           {activeTab === 'contracts' && (

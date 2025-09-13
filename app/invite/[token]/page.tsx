@@ -38,7 +38,7 @@ export default function InviteAcceptancePage() {
 
     setIsAccepting(true);
     try {
-      await acceptInvitation({ inviteToken: token });
+      await acceptInvitation({ token });
       setAccepted(true);
       toast.success('Welcome to the Franchiseen team!');
       

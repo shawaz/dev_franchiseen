@@ -20,8 +20,8 @@ const client = new ConvexHttpClient(CONVEX_URL);
 
 // List of all tables to clear
 const TABLES_TO_CLEAR = [
-  "businesses",
-  "franchise", 
+  "brands",
+  "franchise",
   "investments",
   "escrow",
   "frcTokens",

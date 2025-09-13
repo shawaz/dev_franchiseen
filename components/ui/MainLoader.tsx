@@ -64,20 +64,17 @@ export default function MainLoader({
       </div>
 
       {/* Animated Spinner */}
-      <div className="relative mb-6">
-        {/* Outer ring */}
+      {/* <div className="relative mb-6">
         <div className="w-16 h-16 border-4 border-stone-200 dark:border-stone-700 rounded-full animate-spin">
           <div className="absolute top-0 left-0 w-full h-full border-4 border-transparent border-t-yellow-500 rounded-full animate-spin"></div>
         </div>
         
-        {/* Inner ring */}
         <div className="absolute top-2 left-2 w-12 h-12 border-3 border-stone-300 dark:border-stone-600 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}>
           <div className="absolute top-0 left-0 w-full h-full border-3 border-transparent border-t-yellow-400 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
         </div>
 
-        {/* Center dot */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-      </div>
+      </div> */}
 
       {/* Loading Message */}
       <div className="text-center mb-4">

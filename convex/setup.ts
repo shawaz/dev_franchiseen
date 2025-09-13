@@ -175,7 +175,7 @@ export const getSetupStatus = mutation({
   handler: async (ctx) => {
     const industries = await ctx.db.query("industries").collect();
     const categories = await ctx.db.query("categories").collect();
-    const businesses = await ctx.db.query("businesses").collect();
+    const businesses = await ctx.db.query("brands").collect();
     const franchises = await ctx.db.query("franchise").collect();
     const users = await ctx.db.query("users").collect();
     

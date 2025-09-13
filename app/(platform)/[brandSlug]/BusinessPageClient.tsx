@@ -45,8 +45,8 @@ export default function BusinessPageClient({
     React.useState(false);
   const { formatAmount } = useGlobalCurrency();
   const { openSOLPaymentModal } = useModal();
-  const business = useQuery(api.businesses.getById, {
-    businessId: businessId as Id<"businesses">,
+  const business = useQuery(api.brands.getById, {
+    brandId: businessId as Id<"brands">,
   });
   const [selectedStatus, setSelectedStatus] = React.useState<string>("Funding");
   const statusTabs = React.useMemo(() => {
@@ -132,8 +132,8 @@ export default function BusinessPageClient({
               <Image src={business?.logoUrl || "/logo/logo-2.svg"} alt="Business Logo" width={70} height={70} className="text-center" />
               <div className="flex flex-col ">
                 <h1 className="text-xl font-bold  text-stone-900 dark:text-white">{business?.name}</h1>
-                <p className="text-sm  text-stone-500 dark:text-stone-400">{business?.industry?.name}</p>
-                <p className="text-sm  text-stone-500 dark:text-stone-400">{business?.category?.name}</p>
+                <p className="text-sm  text-stone-500 dark:text-stone-400">Brand Information</p>
+                <p className="text-sm  text-stone-500 dark:text-stone-400">{business?.about || 'No description available'}</p>
               </div>
             </div>
             

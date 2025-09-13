@@ -22,7 +22,7 @@ import { Card, CardContent } from "../ui/card";
 import { useGlobalCurrency } from "@/contexts/GlobalCurrencyContext";
 
 interface Business {
-  _id: Id<"businesses">;
+  _id: Id<"brands">;
   name: string;
   slug?: string;
   logoUrl?: string;
@@ -32,7 +32,7 @@ interface Business {
 
 interface Franchise {
   _id: Id<"franchise">;
-  businessId: Id<"businesses">;
+  brandId: Id<"brands">;
   owner_id: Id<"users">;
   locationAddress: string;
   building: string;

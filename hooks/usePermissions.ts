@@ -2,11 +2,18 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 
+interface PlatformUser {
+  platformMember?: {
+    isActive: boolean;
+    permissions: string[];
+  };
+  departmentAccess?: string[];
+}
+
 export function usePermissions() {
   const { user } = useUser();
-  const permissions = useQuery(api.users.getUserPermissions, {});
   const hasAdminAccess = useQuery(api.users.hasAdminAccess, {});
-  const platformUser = useQuery(api.platformTeam.getCurrentPlatformUser, {});
+  const platformUser = useQuery(api.platformTeam.getCurrentPlatformUser, {}) as PlatformUser | null;
 
   // Check if user has franchiseen.com email
   const userEmail = user?.emailAddresses?.[0]?.emailAddress;
@@ -28,7 +35,7 @@ export function usePermissions() {
       if (memberPermissions.includes(permission)) return true;
 
       // Check for wildcard section match (e.g., 'home.*' matches 'home.tasks')
-      const wildcardPermissions = memberPermissions.filter(p => p.endsWith('.*'));
+      const wildcardPermissions = memberPermissions.filter((p: string) => p.endsWith('.*'));
       for (const wildcardPerm of wildcardPermissions) {
         const section = wildcardPerm.replace('.*', '');
         if (permission.startsWith(section + '.')) return true;
@@ -38,27 +45,6 @@ export function usePermissions() {
     // Fallback: All Franchiseen.com emails have home access
     if (isFranchiseenEmail && permission.startsWith('home.')) {
       return true;
-    }
-
-    // If functions are not yet available, provide basic access to home section for franchiseen emails
-    if (!permissions && isFranchiseenEmail) {
-      return permission.startsWith('home.');
-    }
-
-    // Check legacy permissions system
-    if (permissions) {
-      // Check for wildcard permission
-      if (permissions.includes('*')) return true;
-
-      // Check for exact permission match
-      if (permissions.includes(permission)) return true;
-
-      // Check for wildcard section match (e.g., 'home.*' matches 'home.tasks')
-      const wildcardPermissions = permissions.filter(p => p.endsWith('.*'));
-      for (const wildcardPerm of wildcardPermissions) {
-        const section = wildcardPerm.replace('.*', '');
-        if (permission.startsWith(section + '.')) return true;
-      }
     }
 
     return false;
@@ -87,14 +73,17 @@ export function usePermissions() {
     return false;
   };
 
+  // Default permissions for franchiseen emails
+  const defaultPermissions = isFranchiseenEmail ? ['home.*'] : [];
+  
   return {
-    permissions: permissions || [],
+    permissions: defaultPermissions,
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,
     hasDepartmentAccess,
     hasAdminAccess: hasAdminAccess || isFranchiseenEmail,
-    isLoading: permissions === undefined || hasAdminAccess === undefined,
+    isLoading: hasAdminAccess === undefined,
     platformUser,
     departmentAccess: platformUser?.departmentAccess || (isFranchiseenEmail ? ['home'] : [])
   };

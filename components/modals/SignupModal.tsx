@@ -22,8 +22,9 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 
 interface SignupModalProps {
   isOpen: boolean;
@@ -57,6 +58,16 @@ interface FormData {
   seedPhraseVerified: boolean;
 }
 
+// Add a type for the document upload status
+interface DocumentUploadStatus {
+  [key: string]: {
+    status: 'idle' | 'uploading' | 'success' | 'error';
+    progress?: number;
+    url?: string;
+    error?: string;
+  };
+}
+
 export default function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
@@ -77,11 +88,16 @@ export default function SignupModal({ isOpen, onClose }: SignupModalProps) {
   const [loading, setLoading] = useState(false);
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [seedPhraseInput, setSeedPhraseInput] = useState<string[]>(Array(12).fill(''));
-  const [uploadedDocuments, setUploadedDocuments] = useState<{[key: string]: string}>({});
+  const [uploadedDocuments, setUploadedDocuments] = useState<DocumentUploadStatus>({
+    identityProof: { status: 'idle' },
+    addressProof: { status: 'idle' },
+    incomeProof: { status: 'idle' },
+  });
 
   // Mutations
   const uploadDocument = useMutation(api.users.uploadDocument);
   const updateWallet = useMutation(api.users.updateWallet);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const totalSteps = 5;
 
@@ -117,25 +133,40 @@ export default function SignupModal({ isOpen, onClose }: SignupModalProps) {
   };
 
   const handleDocumentUpload = async (documentType: string, file: File) => {
+    if (!currentUserId) {
+      toast.error('User not initialized');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Mock upload - in real app, upload to storage service
-      const mockUrl = `https://example.com/documents/${file.name}`;
+      // In a real app, you would upload the file to a storage service first
+      // For now, we'll just use a mock URL
+      const mockUrl = `https://storage.franchiseen.com/documents/${currentUserId}/${documentType}-${Date.now()}-${file.name}`;
       
-      await uploadDocument({
+      // Call the uploadDocument mutation
+      const result = await uploadDocument({
+        userId: currentUserId as Id<'users'>,
         documentType,
-        url: mockUrl,
+        documentUrl: mockUrl
       });
       
-      setUploadedDocuments(prev => ({
-        ...prev,
-        [documentType]: mockUrl
-      }));
-      
-      toast.success(`${documentType} uploaded successfully!`);
+      if (result?.success) {
+        setUploadedDocuments(prev => ({
+          ...prev,
+          [documentType]: {
+            status: 'success' as const,
+            url: mockUrl
+          }
+        }));
+        
+        toast.success(`${documentType} uploaded successfully!`);
+      } else {
+        throw new Error('Failed to save document reference');
+      }
     } catch (error) {
       console.error('Error uploading document:', error);
-      toast.error('Failed to upload document');
+      toast.error(`Failed to upload ${documentType}`);
     } finally {
       setLoading(false);
     }
@@ -169,23 +200,43 @@ export default function SignupModal({ isOpen, onClose }: SignupModalProps) {
   };
 
   const handleSubmit = async () => {
+    if (!currentUserId) {
+      toast.error('User not initialized');
+      return;
+    }
+
     if (!formData.seedPhraseVerified) {
       toast.error('Please verify your seed phrase first');
       return;
     }
     
+    // Check if all required documents are uploaded
+    const requiredDocuments = ['identityProof', 'addressProof', 'incomeProof'];
+    const missingDocuments = requiredDocuments.filter(doc => !uploadedDocuments[doc]);
+    
+    if (missingDocuments.length > 0) {
+      toast.error(`Please upload all required documents: ${missingDocuments.join(', ')}`);
+      return;
+    }
+    
     setLoading(true);
     try {
-      await updateWallet({
+      // Update wallet information
+      const result = await updateWallet({
+        userId: currentUserId as Id<'users'>,
         walletAddress: formData.walletAddress,
-        seedPhraseVerified: true,
+        seedPhrase: formData.seedPhrase
       });
       
-      toast.success('Account created successfully! Please wait for admin verification.');
-      onClose();
+      if (result?.success) {
+        toast.success('Account created successfully! Please wait for admin verification.');
+        onClose();
+      } else {
+        throw new Error('Failed to update wallet information');
+      }
     } catch (error) {
       console.error('Error creating account:', error);
-      toast.error('Failed to create account');
+      toast.error('Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
